@@ -41,13 +41,17 @@ fn main() -> std::process::ExitCode {
 `assets/localizations/localization.toml`:
 
 ```toml
-languages-directory = "translations"
+translations-directory = "translations"
 source-language = "en"
 default-language = "en"
 ```
 
 Put matching FTL files under
 `assets/localizations/translations/{en,es,ru}/`, grouped by responsibility.
+`translations-directory` is optional: omit it when the locale folders sit beside
+`localization.toml` (`en/`, `es/`, etc.). Its default is `"."`; a configured path is
+relative to that TOML, not Cargo.toml. The legacy `languages-directory` alias is
+accepted, but specifying both names is an error. No directory guessing is performed.
 Languages and nested modules are discovered automatically, not enumerated in Rust.
 Source-language defines keys, references and argument annotations.
 `default-language` is emitted as application startup metadata (`DEFAULT_LANGUAGE`);

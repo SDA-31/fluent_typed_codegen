@@ -20,7 +20,7 @@ pub(super) fn render(
 		.configuration
 		.languages_directory
 		.to_str()
-		.ok_or("languages-directory must be UTF-8")?;
+		.ok_or("translations-directory must be UTF-8")?;
 	let configuration = config_path.to_str().ok_or("catalog path must be UTF-8")?;
 	let mut modules = Vec::new();
 
@@ -43,7 +43,7 @@ pub(super) fn render(
 		pub const DEFAULT_LANGUAGE: &str = #default_language;
 		/// Language whose messages and type annotations define the generated API.
 		pub const SOURCE_LANGUAGE: &str = #source_language;
-		/// Locale-directory root relative to the definition file's parent directory.
+		/// Resolved translations-directory relative to the definition's parent; defaults to `.`.
 		pub const LANGUAGES_DIRECTORY: &str = #languages_directory;
 		/// Unmodified definition text embedded at build time.
 		pub const CATALOG_CONFIG: &str = include_str!(#configuration);

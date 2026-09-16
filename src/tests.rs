@@ -8,6 +8,7 @@ use syn::{Attribute, Item, parse_quote};
 
 static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(0);
 
+mod directories;
 mod documentation;
 mod leaf_api;
 mod syntax;
@@ -66,7 +67,7 @@ fn settings() -> Settings {
 
 fn configuration() -> &'static str {
 	r#"
-languages-directory = "languages"
+translations-directory = "languages"
 source-language = "de"
 default-language = "pt-BR"
 "#

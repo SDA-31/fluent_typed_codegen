@@ -29,12 +29,17 @@
 //! relative to that root. Its filename is configurable; the TOML contains:
 //!
 //! ```toml
-//! languages-directory = "translations"
+//! translations-directory = "translations"
 //! source-language = "en"
 //! default-language = "en"
 //! ```
 //!
-//! Put matching FTL modules under `assets/localizations/translations/en/`, `es/`
+//! `translations-directory` is optional and relative to this TOML. Omit it to use
+//! locale folders beside the file (default `.`). The legacy `languages-directory`
+//! alias is accepted, but specifying both names is an error.
+//!
+//! With the explicit path above, put matching FTL modules under
+//! `assets/localizations/translations/en/`, `es/`
 //! and any other locale directories. The source language defines message keys,
 //! references and argument annotations. `default-language` is emitted as
 //! `DEFAULT_LANGUAGE` metadata for application startup; `Locale::default()`

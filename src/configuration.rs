@@ -10,7 +10,8 @@ use toml_edit::{DocumentMut, Table};
 /// loaded externally without rebuilding; embedded translations require a rebuild.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CatalogConfig {
-	/// Directory containing locale folders, relative to the configuration file.
+	/// Resolved `translations-directory`, relative to the configuration file.
+	/// Defaults to `.`; `languages-directory` is accepted as a legacy TOML alias.
 	pub languages_directory: PathBuf,
 	/// Canonical locale code whose messages and annotations define the typed API.
 	pub source_language: String,
@@ -20,7 +21,11 @@ pub struct CatalogConfig {
 }
 
 impl CatalogConfig {
-	/// Parse TOML, rejecting unknown fields, missing values and unsafe relative paths.
+	/// Parse TOML, rejecting unknown fields, missing language fields and unsafe paths.
+	///
+	/// `translations-directory` is optional and defaults to `.` (locale folders
+	/// beside the TOML). The legacy `languages-directory` key is also accepted;
+	/// specifying both keys is an error, even when their values match.
 	///
 	/// # Errors
 	/// Returns a diagnostic for invalid TOML, fields or directory paths. Existence,
@@ -29,11 +34,11 @@ impl CatalogConfig {
 	/// ```
 	/// use fluent_typed_codegen::CatalogConfig;
 	/// let config = CatalogConfig::parse(r#"
-	/// languages-directory = "."
 	/// source-language = "en"
 	/// default-language = "ru"
 	/// "#)?;
 	/// assert_eq!(config.default_language, "ru");
+	/// assert_eq!(config.languages_directory, std::path::Path::new("."));
 	/// # Ok::<(), String>(())
 	/// ```
 	pub fn parse(source: &str) -> Result<Self, String> {
@@ -43,15 +48,34 @@ impl CatalogConfig {
 		let table = document.as_table();
 		check_fields(
 			table,
-			&["languages-directory", "source-language", "default-language"],
+			&[
+				"translations-directory",
+				"languages-directory",
+				"source-language",
+				"default-language",
+			],
 		)?;
 		let settings = Self {
-			languages_directory: string_field(table, "languages-directory")?.into(),
+			languages_directory: translations_directory(table)?.into(),
 			source_language: string_field(table, "source-language")?,
 			default_language: string_field(table, "default-language")?,
 		};
-		paths::validate_relative(&settings.languages_directory, "languages-directory")?;
+		paths::validate_relative(&settings.languages_directory, "translations-directory")?;
 		Ok(settings)
+	}
+}
+
+fn translations_directory(table: &Table) -> Result<String, String> {
+	match (
+		table.contains_key("translations-directory"),
+		table.contains_key("languages-directory"),
+	) {
+		(true, true) => {
+			Err("use only translations-directory; languages-directory is its legacy alias".into())
+		}
+		(true, false) => string_field(table, "translations-directory"),
+		(false, true) => string_field(table, "languages-directory"),
+		(false, false) => Ok(".".into()),
 	}
 }
 
