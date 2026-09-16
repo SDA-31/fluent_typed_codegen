@@ -80,8 +80,8 @@ fn cargo_generation(extension: Option<&dyn Extension>) -> Result<(), String> {
 /// `locale_modules.rs`, the checked loader's `validation.rs`, and upstream APIs/FTL
 /// under `modules/<module path>/`. Persistent `inputs/<inventory hash>/` staging
 /// files let upstream Cargo rerun dependencies remain valid between builds.
-/// Each FTL file has its own key namespace. Plain generated consumers need
-/// `fluent-typed` and `fluent-syntax` for checked external loading. Framework
+/// Each FTL file has its own key namespace. Generated modules require consumer-owned
+/// `fluent-typed` and `fluent-syntax` dependencies, including embedded-only use. Framework
 /// extensions may supply these through their own runtime re-exports. Language
 /// directories and nested modules are discovered deterministically. Unrelated
 /// output files, including previously generated extensions, are left untouched.

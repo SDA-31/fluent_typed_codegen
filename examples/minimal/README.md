@@ -1,7 +1,7 @@
-# Minimal engine-free localization
+# Minimal typed localization in Rust
 
-A complete plain Rust consumer: no Bevy, bridge or provider. The default greeting
-and documentation are English; real Spanish and Russian translations are included.
+A complete Rust application using a generated translation API. The default greeting
+and documentation are English; Spanish and Russian translations are included.
 Catalogs live under `assets/localizations/translations/{en,es,ru}/` with matching
 module paths. Generated files stay in Cargo OUT_DIR.
 

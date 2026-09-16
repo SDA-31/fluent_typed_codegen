@@ -4,7 +4,7 @@ use std::path::{Component, Path};
 /// Validate a relative path without filesystem access or normalization.
 ///
 /// `field` identifies the setting in diagnostics. A single `.` is accepted;
-/// absolute paths, parent components and asset source/label syntax are not.
+/// absolute paths, parent components, backslashes, `:` and `#` are not.
 /// Filesystem existence and symlink checks belong to discovery, not this function.
 ///
 /// # Errors

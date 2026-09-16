@@ -1,16 +1,21 @@
 # fluent_typed_codegen
 
-One mission: discover modular Fluent sources and generate a typed translation
-tree around upstream `fluent-typed`. This is not a new Fluent engine.
-There is no dependency on Bevy, its runtime integration or a support crate.
+Generate a typed Rust API from modular Fluent translation files. Language folders
+determine the available locales; paths within each language become named
+translation scopes, with message arguments checked at compile time. The generated
+accessors use `fluent-typed` for Fluent formatting.
 
-[Runnable engine-free example](examples/minimal/README.md)
+Use it in Rust applications and libraries through a Cargo build script, or call
+the generator directly from your own build tooling.
+
+[Runnable Rust example](examples/minimal/README.md)
 
 ## Setup
 
 Install from [GitHub](https://github.com/SDA-31/fluent_typed_codegen); this package
 is not yet published on crates.io. Cargo.lock pins the selected `main` revision.
 For an explicitly pinned dependency, replace `branch` with `rev` in both entries.
+The declared minimum Rust version is 1.95.
 
 ```toml
 [build-dependencies]
@@ -44,8 +49,11 @@ default-language = "en"
 Put matching FTL files under
 `assets/localizations/translations/{en,es,ru}/`, grouped by responsibility.
 Languages and nested modules are discovered automatically, not enumerated in Rust.
-Source-language defines keys, references and argument annotations; default-language
-is independent startup policy. Unknown fields, unsafe paths, symlinks, missing
+Source-language defines keys, references and argument annotations.
+`default-language` is emitted as application startup metadata (`DEFAULT_LANGUAGE`);
+the application selects its initial locale. `Locale::default()` identifies the
+**source** language, not the configured startup language.
+Unknown fields, unsafe paths, symlinked source trees, missing
 languages/modules, duplicate keys and incompatible contracts fail generation.
 
 `build` returns a failing ExitCode and readable diagnostics instead of panicking.
@@ -55,7 +63,7 @@ missing and extra paths; the generator never repairs translator files automatica
 ## Features and dependency boundaries
 
 - `build` enables discovery, validation, generation and the typed extension API.
-  It is enabled by default to preserve existing build-script consumers.
+  It is enabled by default; disable it on the application's macro-only dependency.
 - With `default-features = false` and no features, the crate has **no dependencies**
   and exports only the `translations!` macro. Syn, quote, prettyplease, TOML parsing
   and upstream code generation are not compiled into this instance of the crate.
@@ -74,7 +82,7 @@ normal targets; use an isolated consumer graph when checking runtime isolation.
 
 All outputs stay in Cargo OUT_DIR, respecting the selected profile and target:
 
-- `translations.rs`: engine-neutral `Translations`, `Locale`, groups and leaves.
+- `translations.rs`: `Translations`, `Locale`, named groups and file types.
 - `locale_modules.rs`: original module sources and build-validated metadata.
 - `validation.rs`: private checked-loading contract, emitted from the same schema
   implementation used at build time.
@@ -86,7 +94,7 @@ resources or delete unrelated/stale output. Failed output may be incomplete:
 always propagate build errors. Rust-analyzer indexes through Cargo build scripts;
 `cargo check` regenerates without running the application.
 
-## Named scopes and engine-free use
+## Typed translation scopes
 
 ```rust
 fluent_typed_codegen::translations!(pub mod texts);
@@ -108,7 +116,7 @@ available in application source.
 Manual inclusion remains supported for custom dependency aliases or frontend
 layouts; existing raw consumers do not need to add the macro dependency. Import
 their runtime libraries as `fluent_typed` and `fluent_syntax` inside the generated
-module, then include `concat!(env!("OUT_DIR"), "/translations.rs")` as before.
+module, then include `concat!(env!("OUT_DIR"), "/translations.rs")`.
 
 Folders expose snake_case modules and named group types. Each FTL file exposes
 only a PascalCase leaf type, such as `presentation::Hud`, with upstream accessors
@@ -119,11 +127,13 @@ message type names are reported during generation.
 Clones share immutable catalogs through Arc.
 Equal keys in different files remain independent and may have different types.
 
-`Locale::load()` and `Translations::embedded(locale)` load embedded data.
+`Locale::load()` and `Translations::embedded(locale)` parse embedded FTL data.
 `Translations::from_modules(locale, &[("presentation/hud.ftl", source), ...])`
 checks complete path inventory, exact keys/variables/references and upstream typed
 contracts before returning a snapshot. Prose-only edits work; missing/extra/
-duplicate modules, removed variables and changed references fail.
+duplicate modules, removed variables and changed references fail. These methods
+perform no filesystem reads: applications supply complete FTL strings, read
+external files and decide when to replace a snapshot.
 Raw consumers need both runtime dependencies above; framework bridges can
 re-export them instead.
 
@@ -135,8 +145,8 @@ are not supported. Existing key prefixes are not rewritten.
 
 ## Framework extensions
 
-This generator has **no Bevy feature or Bevy template**.
-An optional `Extension` decorates an additional entrypoint with typed Rust syntax:
+An optional `Extension` decorates an additional entrypoint with typed Rust syntax
+for application-specific traits, attributes or registration code:
 
 - `root_imports` / `scope_imports`: `Vec<syn::ItemUse>`.
 - `type_attributes`: `Vec<syn::Attribute>`.
@@ -171,15 +181,10 @@ Syntax nodes improve construction and syntax diagnostics; they do not resolve
 Rust types or imports. Consumer compilation remains necessary. Syn's opaque
 `Verbatim` fallback nodes are rejected recursively with a filename-tagged error
 before printing; emit structured supported syntax instead. Macro token bodies
-are left to Rust. The generator tests exercise a dummy extension without any
-engine dependency, and the Bevy example compiles the actual adapter.
+are left to Rust. The generator tests exercise syntax hooks with a standalone
+extension. Integrations should also compile a consumer of their emitted API.
 
-Bevy users use the separate `bevy_fluent_codegen_bridge` build-dependency and
-enable `bevy_fluent_typed/codegen` at runtime. The bridge lives inside the Bevy
-integration package, not this generator. Its repository contains `GUIDE.md` with
-the Bevy wiring; no sibling checkout is required for engine-neutral generation.
-
-## Explicit generation and migration
+## Custom build tooling
 
 `Settings::from_manifest` and `generate(package, output, settings)` support other
 build frontends. Choose a tool-owned directory beneath target/.
@@ -199,15 +204,10 @@ are ignored; a consuming workspace owns its own lockfile.
 The [bundled example](examples/minimal/README.md) uses repository-local paths for
 development; external applications use the Git dependencies in Setup.
 
-Migrating from the old Bevy feature: remove `features = ["bevy"]`, use the bridge
-in build.rs, and enable the runtime's `codegen` facade. Existing
-`bevy_fluent_typed::translations!` calls stay unchanged. Remove dependencies on
-the deleted `fluent_typed_support`; configuration belongs to this generator,
-strict loading to its generated API, adapter policy to the bridge.
-
-The root type is `Translations`, not Catalog or L10nLanguage. Use
-`translations.presentation().hud().msg_title()`. No compatibility aliases or
-handwritten FluentCatalog implementation are needed for bridge users.
+The generator owns discovery, validation and emitted Rust. Your application owns
+language selection, resource loading and when to replace an existing snapshot.
+Use the generated checked `Translations::from_modules` API for external catalogs;
+the generator itself does not install a filesystem watcher or a UI update loop.
 
 ## License
 

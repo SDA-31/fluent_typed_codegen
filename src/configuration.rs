@@ -14,7 +14,8 @@ pub struct CatalogConfig {
 	pub languages_directory: PathBuf,
 	/// Canonical locale code whose messages and annotations define the typed API.
 	pub source_language: String,
-	/// Canonical startup locale code, independent of the API's source language.
+	/// Canonical startup locale emitted as `DEFAULT_LANGUAGE` metadata for callers.
+	/// Does not change generated `Locale::default()`, which selects the source language.
 	pub default_language: String,
 }
 

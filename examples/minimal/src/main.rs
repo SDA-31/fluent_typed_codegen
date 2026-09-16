@@ -1,4 +1,4 @@
-//! Engine-free typed translations: build-time generation and a lightweight macro.
+//! Typed translations in a Rust application: build-time generation and a lightweight macro.
 l10n::translations!(pub mod texts);
 
 fn main() {

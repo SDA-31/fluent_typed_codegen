@@ -1,21 +1,92 @@
-//! Bevy-free discovery and generation of typed Fluent catalogs.
+//! Generate typed Rust translation APIs from modular Fluent catalogs.
 //!
-//! Add this crate to build-dependencies with the `build` feature and return
-//! `build()` from build.rs. `Settings` locates resources and localization.toml through Cargo
-//! metadata; this generator validates configuration and Fluent module schemas.
-//! All languages and nested modules are discovered, with no fixed language list.
+//! Language directories are discovered automatically. FTL file paths become
+//! named Rust types, and message parameters become typed accessor arguments.
+//! The generated accessors use `fluent-typed` for Fluent formatting. Applications
+//! choose their own resource loading, active language and presentation layer.
 //!
-//! Cargo entrypoints write generated Rust, FTL and runtime metadata to OUT_DIR.
-//! `generate` supports an explicit, caller-owned output directory for custom
-//! frontends; keep it under target/ rather than in source resources.
-//! Framework adapters use the optional `Extension` syntax hooks. This crate
-//! neither knows their filenames nor depends on a game engine or runtime adapter.
+//! # Feature selection
 //!
-//! [`translations!`] is available without features or dependencies. Add this crate
-//! to normal dependencies with `default-features = false` to declare the generated
-//! module. Its Fluent runtime dependencies remain consumer-owned. `build` is on
-//! by default for existing build-script consumers; Cargo resolver 2/3 keeps host
-//! generation separate from the dependency-free macro used by the application.
+//! - **`build` (default):** discovery, schema validation, source generation and
+//!   the `Extension` API for custom integrations. Enable in build-dependencies.
+//! - **No default features:** only the dependency-free [`translations!`] macro.
+//!   Use this configuration in normal dependencies. The generated code still
+//!   requires the application's `fluent-typed` and `fluent-syntax` dependencies.
+//!
+//! Cargo resolver 2/3 keeps the build and normal feature contexts separate.
+//! See the [dependency setup](https://github.com/SDA-31/fluent_typed_codegen#setup)
+//! for Git dependencies while the package is not yet published on crates.io.
+//!
+//! # Configure the consuming package
+//!
+//! ```toml
+//! [package.metadata.localization]
+//! asset-root = "assets"
+//! catalog = "localizations/localization.toml"
+//! ```
+//!
+//! The asset root is relative to the Cargo package. The configuration path is
+//! relative to that root. Its filename is configurable; the TOML contains:
+//!
+//! ```toml
+//! languages-directory = "translations"
+//! source-language = "en"
+//! default-language = "en"
+//! ```
+//!
+//! Put matching FTL modules under `assets/localizations/translations/en/`, `es/`
+//! and any other locale directories. The source language defines message keys,
+//! references and argument annotations. `default-language` is emitted as
+//! `DEFAULT_LANGUAGE` metadata for application startup; `Locale::default()`
+//! identifies the source language. Each language must provide the same contract.
+//!
+//! # Generate and use the API
+//!
+//! Return `fluent_typed_codegen::build()` from the consuming `build.rs` to run
+//! validation and generation. Errors produce readable diagnostics and a failing
+//! exit code. `cargo check` also regenerates for IDE indexing; no application
+//! execution is needed. Source files are never rewritten.
+//!
+//! For a file `ui/menu.ftl` containing `title = Settings`, the generated type is
+//! `texts::ui::Menu`. A directory becomes a namespace/group, a file becomes a
+//! leaf type, and each Fluent message has a typed accessor:
+//!
+//! ```ignore
+//! fluent_typed_codegen::translations!(pub mod texts);
+//!
+//! let translations: texts::Translations = texts::Locale::En.load();
+//! let ui: &texts::Ui = translations.ui();
+//! let menu: &texts::ui::Menu = ui.menu();
+//! println!("{}", menu.msg_title());
+//! ```
+//!
+//! This snippet needs consumer-owned FTL and build output; the
+//! [runnable Rust example](https://github.com/SDA-31/fluent_typed_codegen/tree/main/examples/minimal)
+//! demonstrates the complete setup. There is no public module at a leaf path.
+//! Message keys in different files stay independent, including their argument types.
+//!
+//! # Output and checked loading
+//!
+//! Cargo entrypoints emit Rust, per-module FTL and source metadata into `OUT_DIR`.
+//! Keep that output under target/ and out of source control. `generate` also
+//! accepts an explicit tool-owned output directory for custom build frontends.
+//! Failed generation can leave partial output; always propagate build errors.
+//!
+//! `Locale::load()` parses embedded FTL. Generated `Translations::from_modules`
+//! validates and parses caller-supplied FTL strings before
+//! returning a snapshot. Compatible prose edits can be loaded without rebuilding;
+//! changes to the schema or language/module inventory require regeneration.
+//! These runtime methods perform no filesystem reads. File loading and replacing
+//! snapshots are caller-controlled, not a filesystem watcher.
+//!
+//! # Custom integrations
+//!
+//! With `build`, `Extension` adds an entrypoint decorated with typed Rust syntax,
+//! while preserving the plain generated API. It can add attributes, imports or
+//! application-specific registration code. See the
+//! [extension guide](https://github.com/SDA-31/fluent_typed_codegen#framework-extensions)
+//! for its syntax hooks and consumer-compilation requirements.
+//! The repository links follow `main`; this API reference describes the viewed version.
 #![warn(missing_docs)]
 mod macros;
 

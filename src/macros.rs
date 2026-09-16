@@ -11,11 +11,12 @@
 /// let translations: texts::Translations = texts::Locale::En.load();
 /// ```
 ///
-/// This example needs application-owned FTL and build output; the runnable
-/// `examples/minimal` package compiles it. Attributes, Rust visibility and a
+/// This example needs application-owned FTL and build output; the
+/// [runnable example](https://github.com/SDA-31/fluent_typed_codegen/tree/main/examples/minimal)
+/// provides a complete consumer. Attributes, Rust visibility and a
 /// trailing semicolon inside the invocation are optional. The macro only declares
 /// the module, imports the Fluent libraries and includes Cargo output; it neither
-/// generates sources nor installs a framework/provider. Explicit low-level
+/// generates sources nor loads catalogs. Explicit low-level
 /// inclusion remains supported for custom dependency aliases or frontend layouts.
 #[macro_export]
 macro_rules! translations {

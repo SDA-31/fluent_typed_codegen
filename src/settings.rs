@@ -1,4 +1,4 @@
-//! Project metadata shared by generation and the runtime asset configuration.
+//! Package metadata locating translation sources for generation.
 use crate::paths;
 use std::path::{Path, PathBuf};
 use toml_edit::DocumentMut;
@@ -6,9 +6,9 @@ use toml_edit::DocumentMut;
 /// Portable paths locating a consuming package's assets and catalog configuration.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Settings {
-	/// Asset directory relative to the consuming Cargo package, e.g. `Resources`.
+	/// Asset directory relative to the consuming Cargo package, e.g. `assets`.
 	pub asset_root: PathBuf,
-	/// TOML configuration path relative to `asset_root`, e.g. `Localizations/localization.toml`.
+	/// TOML configuration path relative to `asset_root`, e.g. `localizations/localization.toml`.
 	pub catalog: PathBuf,
 }
 
@@ -23,10 +23,10 @@ impl Settings {
 	/// use fluent_typed_codegen::Settings;
 	/// let settings = Settings::from_manifest(r#"
 	/// [package.metadata.localization]
-	/// asset-root = "Resources"
-	/// catalog = "Localizations/localization.toml"
+	/// asset-root = "assets"
+	/// catalog = "localizations/localization.toml"
 	/// "#)?;
-	/// assert_eq!(settings.asset_root.to_str(), Some("Resources"));
+	/// assert_eq!(settings.asset_root.to_str(), Some("assets"));
 	/// # Ok::<(), String>(())
 	/// ```
 	pub fn from_manifest(source: &str) -> Result<Self, String> {

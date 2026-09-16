@@ -1,4 +1,4 @@
-//! Explicit generation for a custom frontend; normally use from_cargo in build.rs.
+//! Explicit generation for a custom frontend; normally return build() from build.rs.
 use fluent_typed_codegen::{Settings, generate};
 use std::{env, fs, path::PathBuf};
 
