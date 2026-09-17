@@ -160,11 +160,19 @@ fn render_node(
 			}
 		});
 
-	let declarations = quote! {
+	let declaration = parse_quote! {
 		#[doc = #description]
 		#[derive(Clone)]
 		#(#attributes)*
 		#definition
+	};
+	let declaration = match extension {
+		Some(extension) => extension.type_declaration(declaration),
+		None => syn::Item::Struct(declaration),
+	};
+
+	let declarations = quote! {
+		#declaration
 
 		impl #ty {
 			#(#accessors)*

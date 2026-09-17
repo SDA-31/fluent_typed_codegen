@@ -1,5 +1,5 @@
 //! Opt-in Rust syntax decoration for integrations, without runtime dependencies.
-use syn::{Attribute, Ident, Item, ItemUse, Path};
+use syn::{Attribute, Ident, Item, ItemStruct, ItemUse, Path};
 
 /// A generated type and its path of accessor calls from the root snapshot.
 ///
@@ -75,6 +75,16 @@ pub trait Extension {
 	/// Attributes attached to every root, group and leaf wrapper.
 	fn type_attributes(&self) -> Vec<Attribute> {
 		Vec::new()
+	}
+
+	/// Decorate a complete root, group or leaf declaration, including its docs,
+	/// clone derive and [`Self::type_attributes`]. The default leaves it unchanged.
+	/// An adapter may wrap it in a runtime-owned item macro to select attributes
+	/// in the consumer's dependency graph rather than the build script's graph.
+	/// Preserve the declaration's name, visibility, fields and existing attributes:
+	/// generated implementations and constructors still refer to that exact type.
+	fn type_declaration(&self, declaration: ItemStruct) -> Item {
+		Item::Struct(declaration)
 	}
 
 	/// Extra normalized snake_case branch and leaf names forbidden at any depth.

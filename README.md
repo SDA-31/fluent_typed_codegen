@@ -154,6 +154,10 @@ for application-specific traits, attributes or registration code:
 
 - `root_imports` / `scope_imports`: `Vec<syn::ItemUse>`.
 - `type_attributes`: `Vec<syn::Attribute>`.
+- `type_declaration`: a complete annotated `syn::ItemStruct` in, `syn::Item` out.
+  Its default preserves the declaration. Integrations can wrap it in a
+  runtime-owned item macro without moving dependency-feature decisions into the
+  build script. Preserve the name, visibility, fields and existing attributes.
 - `root_items`: `Vec<syn::Item>`.
 - `Scope`: a `syn::Path` and a sequence of `syn::Ident` accessor names.
 

@@ -154,3 +154,67 @@ fn invalid_verbatim_extension_syntax_is_reported_before_writing_its_entrypoint()
 	);
 	assert!(!output.join("invalid_adapter.rs").exists());
 }
+
+#[test]
+fn declaration_hooks_preserve_complete_types_without_changing_plain_output() {
+	struct Wrapped;
+
+	impl Extension for Wrapped {
+		fn filename(&self) -> &str {
+			"wrapped.rs"
+		}
+
+		fn type_attributes(&self) -> Vec<Attribute> {
+			vec![parse_quote!(#[allow(dead_code)])]
+		}
+
+		fn type_declaration(&self, declaration: syn::ItemStruct) -> Item {
+			let cloned: Attribute = parse_quote!(#[derive(Clone)]);
+			let allowed: Attribute = parse_quote!(#[allow(dead_code)]);
+			assert!(declaration.attrs.contains(&cloned));
+			assert!(declaration.attrs.contains(&allowed));
+			assert!(
+				declaration
+					.attrs
+					.iter()
+					.any(|attr| attr.path().is_ident("doc"))
+			);
+
+			parse_quote!(runtime::declare! { #declaration })
+		}
+
+		fn root_items(&self, _: &[Scope]) -> Vec<Item> {
+			Vec::new()
+		}
+	}
+
+	fn wrapped_types(items: &[Item], names: &mut Vec<String>) {
+		for item in items {
+			match item {
+				Item::Macro(item) if item.mac.path == parse_quote!(runtime::declare) => {
+					let declaration: syn::ItemStruct =
+						syn::parse2(item.mac.tokens.clone()).unwrap();
+					names.push(declaration.ident.to_string());
+				}
+				Item::Mod(module) => {
+					if let Some((_, children)) = &module.content {
+						wrapped_types(children, names);
+					}
+				}
+				_ => {}
+			}
+		}
+	}
+
+	let fixture = Fixture::new();
+	let settings = fixture.catalogs();
+	let output = fixture.0.join("target/wrapped");
+	generate_with(&fixture.0, &output, &settings, &Wrapped).unwrap();
+	let wrapped = syn::parse_file(&fs::read_to_string(output.join("wrapped.rs")).unwrap()).unwrap();
+	let mut names = Vec::new();
+	wrapped_types(&wrapped.items, &mut names);
+	assert_eq!(names, ["Translations", "Ui", "Main"]);
+	let plain = fs::read_to_string(output.join("translations.rs")).unwrap();
+	assert!(!plain.contains("runtime::declare"));
+	assert!(plain.contains("pub struct Translations"));
+}
