@@ -6,7 +6,7 @@ rust-version = "1.95"
 description = "Automatic Fluent catalog discovery and typed code generation for Cargo"
 repository = "https://github.com/SDA-31/fluent_typed_codegen"
 license = "MIT"
-publish = false
+publish = ["crates-io"]
 
 [features]
 default = ["build"]

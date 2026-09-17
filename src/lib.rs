@@ -18,7 +18,7 @@
 //!
 //! Cargo resolver 2/3 keeps the build and normal feature contexts separate.
 //! See the [dependency setup](https://github.com/SDA-31/fluent_typed_codegen#setup)
-//! for Git dependencies while the package is not yet published on crates.io.
+//! for the build and runtime dependency declarations.
 //!
 //! # Configure the consuming package
 //!

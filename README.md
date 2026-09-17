@@ -15,17 +15,15 @@ the generator directly from your own build tooling.
 
 ## Setup
 
-Install from [GitHub](https://github.com/SDA-31/fluent_typed_codegen); this package
-is not yet published on crates.io. Cargo.lock pins the selected `main` revision.
-For an explicitly pinned dependency, replace `branch` with `rev` in both entries.
+Add these dependencies to your application's Cargo.toml.
 The declared minimum Rust version is 1.95.
 
 ```toml
 [build-dependencies]
-fluent_typed_codegen = { git = "https://github.com/SDA-31/fluent_typed_codegen.git", branch = "main", default-features = false, features = ["build"] }
+fluent_typed_codegen = { version = "0.1.0", default-features = false, features = ["build"] }
 
 [dependencies]
-fluent_typed_codegen = { git = "https://github.com/SDA-31/fluent_typed_codegen.git", branch = "main", default-features = false }
+fluent_typed_codegen = { version = "0.1.0", default-features = false }
 fluent-typed = { version = "0.9.0", default-features = false, features = ["langneg"] }
 fluent-syntax = "0.12"
 
@@ -213,7 +211,7 @@ These commands work from a standalone generator checkout. Add `--locked --offlin
 after the first dependency resolution. The local lockfile and target directory
 are ignored; a consuming workspace owns its own lockfile.
 The [bundled example](examples/minimal/README.md) uses repository-local paths for
-development; external applications use the Git dependencies in Setup.
+development; external applications use the registry dependencies in Setup.
 
 The generator owns discovery, validation and emitted Rust. Your application owns
 language selection, resource loading and when to replace an existing snapshot.
@@ -239,7 +237,7 @@ Unix retains quoted-path coverage while all platforms exercise spaced paths.
 Actions are pinned to commit SHAs, checkout credentials are not retained, and
 the workflow has only `contents: read` permission. There is no publishing job,
 registry token or automatic release. Pushing a `v0.1.0` tag to GitHub runs checks only;
-`publish = false` remains in place until a deliberate manual release preparation.
+Publication to crates.io is a separate, deliberate manual step.
 
 ## License
 
