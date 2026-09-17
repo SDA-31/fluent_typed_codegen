@@ -87,6 +87,23 @@
 //! These runtime methods perform no filesystem reads. File loading and replacing
 //! snapshots are caller-controlled, not a filesystem watcher.
 //!
+//! # Numbers, plural selection and presentation
+//!
+//! Native Fluent numeric selectors remain available; this generator does not
+//! replace upstream argument types or select-expression behavior. For Decimal
+//! formatting, applications may use the independent
+//! [fluent_typed_decimal adapter](https://docs.rs/fluent_typed_decimal/).
+//! Annotate the displayed value and category selector as `(String)` in the source
+//! FTL and pass its `LocalizedNumber::text()` and `LocalizedNumber::selector()`
+//! to the corresponding generated arguments. No special generated type, generator
+//! dependency or feature is required.
+//!
+//! String categories match literal Fluent keys such as `[one]`; unmatched strings
+//! select the starred default. Numeric exact matches such as `[1]` still require
+//! a numeric selector. Keep number formatting aligned with the snapshot's locale.
+//! Number formatting and Fluent interpolation isolation do not implement RTL
+//! layout, glyph shaping or fonts; those belong to the application's renderer.
+//!
 //! # Custom integrations
 //!
 //! With `build`, `Extension` adds an entrypoint decorated with typed Rust syntax,

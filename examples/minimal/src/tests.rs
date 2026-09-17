@@ -1,4 +1,34 @@
 use crate::texts;
+use fluent_typed_decimal::{Decimal, NumberFormatter, PluralRuleType};
+
+#[test]
+fn decimal_strings_preserve_visible_precision_and_native_selectors_still_work() {
+	for (locale, input, expected) in [
+		(texts::Locale::En, "1", "1 item left"),
+		(texts::Locale::En, "1.0", "1.0 items left"),
+		(texts::Locale::Es, "22", "Quedan 22 elementos"),
+		(texts::Locale::Ru, "22", "Осталось 22 предмета"),
+		(texts::Locale::Ru, "5", "Осталось 5 предметов"),
+	] {
+		let formatter =
+			NumberFormatter::try_new(&locale.as_ref().parse().unwrap(), Default::default())
+				.unwrap();
+		let number = formatter
+			.localize(&input.parse::<Decimal>().unwrap(), PluralRuleType::Cardinal)
+			.unwrap();
+		let actual = locale
+			.load()
+			.numbers()
+			.msg_remaining(number.selector(), number.text());
+
+		assert_eq!(actual.replace(['\u{2068}', '\u{2069}'], ""), expected);
+	}
+
+	let english = texts::Locale::En.load();
+	assert_eq!(english.numbers().msg_native(0), "Empty");
+	assert_eq!(english.numbers().msg_native(1), "One item");
+	assert_eq!(english.numbers().msg_native(2), "Several items");
+}
 
 #[deny(unused_imports)]
 mod inferred {
