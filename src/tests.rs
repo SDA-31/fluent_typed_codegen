@@ -23,7 +23,9 @@ impl Fixture {
 			std::process::id()
 		));
 		fs::create_dir(&path).unwrap();
-		Self(path)
+		// Match generated include paths: Windows adds a verbatim prefix, while
+		// macOS may resolve the temporary directory through a symlink.
+		Self(path.canonicalize().unwrap())
 	}
 
 	fn write(&self, relative: &str, source: &str) {

@@ -220,6 +220,27 @@ language selection, resource loading and when to replace an existing snapshot.
 Use the generated checked `Translations::from_modules` API for external catalogs;
 the generator itself does not install a filesystem watcher or a UI update loop.
 
+## Continuous integration
+
+[CI workflow](.github/workflows/ci.yml) runs on pushes (including tags), pull
+requests and manual dispatch. It checks this repository independently:
+
+- Generator tests, doctests, macro-only dependency isolation and the generated
+  consumer on Linux, Windows and macOS with stable Rust.
+- The same test suite on Linux with the declared minimum Rust 1.95.0.
+- Formatting, Clippy with warnings denied, Rustdoc in both feature modes and
+  compilation of the packaged archive on Linux.
+
+Nested example packages are checked explicitly; no enclosing application or
+workspace lockfile is needed. CI resolves fresh standalone lockfiles, then uses
+`--locked`. Dependency/build caches are optional accelerators, not prerequisites.
+Unix retains quoted-path coverage while all platforms exercise spaced paths.
+
+Actions are pinned to commit SHAs, checkout credentials are not retained, and
+the workflow has only `contents: read` permission. There is no publishing job,
+registry token or automatic release. Pushing a `v0.1.0` tag to GitHub runs checks only;
+`publish = false` remains in place until a deliberate manual release preparation.
+
 ## License
 
 [MIT](LICENSE). This license covers the generator repository, not a consuming

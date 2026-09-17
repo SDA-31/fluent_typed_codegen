@@ -46,7 +46,14 @@ fn extension_receives_typed_paths_and_raw_accessors_in_publication_order() {
 	let fixture = Fixture::new();
 	let settings = fixture.catalogs();
 	let extension = SyntaxExtension::default();
-	let output = fixture.0.join("target/quoted \"output\" path");
+	// Quotes are valid Unix filenames but forbidden by Windows. Both variants
+	// exercise spaces; Windows also exercises escaping its path separators.
+	let directory = if cfg!(windows) {
+		"target/generated output path"
+	} else {
+		"target/quoted \"output\" path"
+	};
+	let output = fixture.0.join(directory);
 
 	for language in ["de", "fr", "pt-BR"] {
 		for module in ["type/match", "type/nested/my-hud"] {
