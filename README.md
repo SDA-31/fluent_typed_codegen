@@ -1,5 +1,11 @@
 # fluent_typed_codegen
 
+[![crates.io](https://img.shields.io/crates/v/fluent_typed_codegen)](https://crates.io/crates/fluent_typed_codegen)
+[![docs.rs](https://img.shields.io/docsrs/fluent_typed_codegen)](https://docs.rs/fluent_typed_codegen/latest/fluent_typed_codegen/)
+[![CI](https://img.shields.io/github/actions/workflow/status/SDA-31/fluent_typed_codegen/ci.yml?branch=main&label=CI&logo=github)](https://github.com/SDA-31/fluent_typed_codegen/actions/workflows/ci.yml)
+[![MSRV](https://img.shields.io/crates/msrv/fluent_typed_codegen)](https://crates.io/crates/fluent_typed_codegen)
+[![License](https://img.shields.io/crates/l/fluent_typed_codegen)](LICENSE)
+
 Generate a typed Rust API from modular Fluent translation files. Language folders
 determine the available locales; paths within each language become named
 translation scopes, with message arguments checked at compile time.
@@ -11,6 +17,7 @@ adds module discovery and a typed translation tree around that foundation.
 Use it in Rust applications and libraries through a Cargo build script, or call
 the generator directly from your own build tooling.
 
+[API documentation](https://docs.rs/fluent_typed_codegen/latest/fluent_typed_codegen/) ·
 [Runnable Rust example](examples/minimal/README.md)
 
 ## Setup
