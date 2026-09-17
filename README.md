@@ -2,8 +2,11 @@
 
 Generate a typed Rust API from modular Fluent translation files. Language folders
 determine the available locales; paths within each language become named
-translation scopes, with message arguments checked at compile time. The generated
-accessors use `fluent-typed` for Fluent formatting.
+translation scopes, with message arguments checked at compile time.
+
+Built on [fluent-typed](https://github.com/human-solutions/fluent-typed), which
+generates the typed message accessors and provides Fluent formatting. This crate
+adds module discovery and a typed translation tree around that foundation.
 
 Use it in Rust applications and libraries through a Cargo build script, or call
 the generator directly from your own build tooling.

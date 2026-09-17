@@ -2,8 +2,11 @@
 //!
 //! Language directories are discovered automatically. FTL file paths become
 //! named Rust types, and message parameters become typed accessor arguments.
-//! The generated accessors use `fluent-typed` for Fluent formatting. Applications
-//! choose their own resource loading, active language and presentation layer.
+//!
+//! Built on [fluent-typed](https://docs.rs/fluent-typed/0.9.0/fluent_typed/), which
+//! generates the typed message accessors and provides Fluent formatting. This crate
+//! adds module discovery and a typed translation tree around that foundation.
+//! Applications choose their own resource loading, active language and presentation layer.
 //!
 //! # Feature selection
 //!
