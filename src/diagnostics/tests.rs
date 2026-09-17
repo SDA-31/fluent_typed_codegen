@@ -1,5 +1,14 @@
 use super::{build_outcome, module_mismatch};
-use std::{io, path::Path, process::ExitCode};
+use std::{
+	io,
+	path::{Path, PathBuf},
+	process::ExitCode,
+};
+
+fn expected_root(language: &str) -> PathBuf {
+	// Diagnostics use native filesystem paths, not portable asset identifiers.
+	["data", "translated files", language].iter().collect()
+}
 
 fn mismatch(actual: &[&str], expected: &[&str]) -> String {
 	module_mismatch(
@@ -18,33 +27,48 @@ fn mismatch(actual: &[&str], expected: &[&str]) -> String {
 #[test]
 fn renamed_nested_modules_report_both_sides_in_stable_order() {
 	let message = mismatch(&["ui/z.ftl", "ui/a.ftl"], &["ui/old.ftl"]);
+	let source = expected_root("de");
+	let locale = expected_root("pt-BR");
+	let missing = locale.join("ui/old.ftl");
+	let extra_a = locale.join("ui/a.ftl");
+	let extra_z = locale.join("ui/z.ftl");
+
 	assert_eq!(
 		message,
-		"Locale `pt-BR`: .ftl module paths differ from source-language `de`.\n\n\
-		 Source directory: data/translated files/de\n\
-		 Locale directory: data/translated files/pt-BR\n\n\
-		 Missing in `pt-BR`:\n  - data/translated files/pt-BR/ui/old.ftl\n\n\
-		 Extra in `pt-BR` (no source counterpart):\n  - data/translated files/pt-BR/ui/a.ftl\n  - data/translated files/pt-BR/ui/z.ftl\n\n\
-		 help: Keep identical relative .ftl paths in every language directory.\n\
-		 If you renamed a module, apply the same relative path in every language."
+		format!(
+			"Locale `pt-BR`: .ftl module paths differ from source-language `de`.\n\n\
+			 Source directory: {}\n\
+			 Locale directory: {}\n\n\
+			 Missing in `pt-BR`:\n  - {}\n\n\
+			 Extra in `pt-BR` (no source counterpart):\n  - {}\n  - {}\n\n\
+			 help: Keep identical relative .ftl paths in every language directory.\n\
+			 If you renamed a module, apply the same relative path in every language.",
+			source.display(),
+			locale.display(),
+			missing.display(),
+			extra_a.display(),
+			extra_z.display(),
+		)
 	);
 }
 
 #[test]
 fn missing_only_does_not_report_extra_files() {
 	let message = mismatch(&[], &["ui/main.ftl"]);
+	let missing = expected_root("pt-BR").join("ui/main.ftl");
 
 	assert!(message.contains("Missing in `pt-BR`:"));
-	assert!(message.contains("data/translated files/pt-BR/ui/main.ftl"));
+	assert!(message.contains(missing.to_str().unwrap()), "{message}");
 	assert!(!message.contains("Extra in"));
 }
 
 #[test]
 fn extra_only_does_not_report_missing_files() {
 	let message = mismatch(&["ui/main.ftl", "extra.ftl"], &["ui/main.ftl"]);
+	let extra = expected_root("pt-BR").join("extra.ftl");
 
 	assert!(message.contains("Extra in `pt-BR` (no source counterpart):"));
-	assert!(message.contains("data/translated files/pt-BR/extra.ftl"));
+	assert!(message.contains(extra.to_str().unwrap()), "{message}");
 	assert!(!message.contains("Missing in"));
 }
 
