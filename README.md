@@ -27,10 +27,10 @@ The declared minimum Rust version is 1.95.
 
 ```toml
 [build-dependencies]
-fluent_typed_codegen = { version = "0.1.1", default-features = false, features = ["build"] }
+fluent_typed_codegen = { version = "0.1.2", default-features = false, features = ["build"] }
 
 [dependencies]
-fluent_typed_codegen = { version = "0.1.1", default-features = false }
+fluent_typed_codegen = { version = "0.1.2", default-features = false }
 fluent-typed = { version = "0.9.0", default-features = false, features = ["langneg"] }
 fluent-syntax = "0.12"
 
@@ -105,6 +105,13 @@ There is no combined root translations.ftl. Generation does not edit source
 resources or delete unrelated/stale output. Failed output may be incomplete:
 always propagate build errors. Rust-analyzer indexes through Cargo build scripts;
 `cargo check` regenerates without running the application.
+
+Cargo tracks both the language directory (new files/locales) and each original
+FTL file (edits and removals), even when those assets are excluded from packaging.
+Removing a module from every language regenerates the API; removing it from only
+one language reports a contract mismatch. Restoring matching files recovers on the
+next build. Upstream's staged-input timestamps can require one additional rebuild
+after an edit; subsequent unchanged builds reuse the generated output.
 
 ## Typed translation scopes
 

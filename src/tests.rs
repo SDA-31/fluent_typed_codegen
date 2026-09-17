@@ -10,6 +10,7 @@ static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(0);
 
 mod directories;
 mod documentation;
+mod incremental;
 mod leaf_api;
 mod syntax;
 

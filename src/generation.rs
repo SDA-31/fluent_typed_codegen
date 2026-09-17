@@ -34,7 +34,8 @@ pub fn build_with(extension: &dyn Extension) -> ExitCode {
 /// Generate using the consuming package's Cargo.toml metadata and Cargo OUT_DIR.
 ///
 /// Call from the consumer's `build.rs` using this crate as a build-dependency. Emits
-/// Cargo rerun directives for the manifest, configuration and language tree.
+/// Cargo rerun directives for the manifest, configuration, language tree and each
+/// original FTL input. Tracking files individually also detects removed modules.
 ///
 /// # Errors
 /// Returns a diagnostic if Cargo environment variables are absent, settings or
@@ -147,6 +148,14 @@ fn generate_inner(
 	let root = &sources.root;
 	println!("cargo::rerun-if-changed={}", config_path.display());
 	println!("cargo::rerun-if-changed={}", root.display());
+
+	// Keep the directory dependency for new modules/locales, and individual inputs
+	// for deletions that directory timestamps alone may not reveal on Windows.
+	// Upstream tracks staged copies in OUT_DIR, not these translator-owned files.
+	for module in &sources.modules {
+		println!("cargo::rerun-if-changed={}", module.absolute.display());
+	}
+
 	fs::create_dir_all(output).map_err(|error| error.to_string())?;
 	let output = output.canonicalize().map_err(|error| error.to_string())?;
 
