@@ -27,10 +27,10 @@ The declared minimum Rust version is 1.95.
 
 ```toml
 [build-dependencies]
-fluent_typed_codegen = { version = "0.1.2", default-features = false, features = ["build"] }
+fluent_typed_codegen = { version = "0.1.3", default-features = false, features = ["build"] }
 
 [dependencies]
-fluent_typed_codegen = { version = "0.1.2", default-features = false }
+fluent_typed_codegen = { version = "0.1.3", default-features = false }
 fluent-typed = { version = "0.9.0", default-features = false, features = ["langneg"] }
 fluent-syntax = "0.12"
 
