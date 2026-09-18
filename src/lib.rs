@@ -90,13 +90,17 @@
 //! # Numbers, plural selection and presentation
 //!
 //! Native Fluent numeric selectors remain available; this generator does not
-//! replace upstream argument types or select-expression behavior. For Decimal
-//! formatting, applications may use the independent
-//! [fluent_typed_decimal adapter](https://docs.rs/fluent_typed_decimal/).
-//! Annotate the displayed value and category selector as `(String)` in the source
-//! FTL and pass its `LocalizedNumber::text()` and `LocalizedNumber::selector()`
-//! to the corresponding generated arguments. No special generated type, generator
-//! dependency or feature is required.
+//! replace upstream argument types or select-expression behavior. Use dedicated
+//! [ICU](https://unicode-org.github.io/icu/userguide/format_parse/) or
+//! [ICU4X](https://docs.rs/icu/) formatters for numbers, percentages, currencies
+//! and dates; formatting policies and component stability belong to the application.
+//! For decimal text, use [DecimalFormatter](https://docs.rs/icu_decimal/latest/icu_decimal/struct.DecimalFormatter.html).
+//! If grammar must follow visible precision, pass the same prepared Decimal to
+//! [PluralRules](https://docs.rs/icu_plurals/latest/icu_plurals/struct.PluralRules.html).
+//! Annotate the displayed text and category keyword as `(String)` in source FTL.
+//! The [runnable example](https://github.com/SDA-31/fluent_typed_codegen/tree/main/examples/minimal)
+//! uses ICU directly; no special generated numeric type, generator dependency or
+//! feature is required. Respect ICU's operand limits for arbitrary-precision input.
 //!
 //! String categories match literal Fluent keys such as `[one]`; unmatched strings
 //! select the starred default. Numeric exact matches such as `[1]` still require

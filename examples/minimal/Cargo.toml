@@ -15,7 +15,9 @@ catalog = "localizations/localization.toml"
 l10n = { package = "fluent_typed_codegen", path = "../..", default-features = false }
 fluent-typed = { version = "0.9.0", default-features = false, features = ["langneg"] }
 fluent-syntax = "0.12"
-fluent_typed_decimal = "0.1.0"
+icu_decimal = { version = "2.3", features = ["alloc"] }
+icu_locale_core = "2.3"
+icu_plurals = "2.3"
 
 [build-dependencies]
 l10n = { package = "fluent_typed_codegen", path = "../..", default-features = false, features = ["build"] }

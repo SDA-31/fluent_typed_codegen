@@ -1,5 +1,7 @@
-use crate::texts;
-use fluent_typed_decimal::{Decimal, NumberFormatter, PluralRuleType};
+use crate::{plural_key, texts};
+use icu_decimal::{DecimalFormatter, input::Decimal};
+use icu_locale_core::Locale;
+use icu_plurals::PluralRules;
 
 #[test]
 fn decimal_strings_preserve_visible_precision_and_native_selectors_still_work() {
@@ -10,16 +12,13 @@ fn decimal_strings_preserve_visible_precision_and_native_selectors_still_work() 
 		(texts::Locale::Ru, "22", "Осталось 22 предмета"),
 		(texts::Locale::Ru, "5", "Осталось 5 предметов"),
 	] {
-		let formatter =
-			NumberFormatter::try_new(&locale.as_ref().parse().unwrap(), Default::default())
-				.unwrap();
-		let number = formatter
-			.localize(&input.parse::<Decimal>().unwrap(), PluralRuleType::Cardinal)
-			.unwrap();
-		let actual = locale
-			.load()
-			.numbers()
-			.msg_remaining(number.selector(), number.text());
+		let language: Locale = locale.as_ref().parse().unwrap();
+		let formatter = DecimalFormatter::try_new((&language).into(), Default::default()).unwrap();
+		let rules = PluralRules::try_new_cardinal((&language).into()).unwrap();
+		let value = input.parse::<Decimal>().unwrap();
+		let text = formatter.format_to_string(&value);
+		let selector = plural_key(rules.category_for(&value));
+		let actual = locale.load().numbers().msg_remaining(selector, text);
 
 		assert_eq!(actual.replace(['\u{2068}', '\u{2069}'], ""), expected);
 	}

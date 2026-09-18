@@ -14,7 +14,9 @@ for your application, use the [registry dependency setup](../../README.md#setup)
 l10n = { package = "fluent_typed_codegen", path = "../..", default-features = false }
 fluent-typed = { version = "0.9.0", default-features = false, features = ["langneg"] }
 fluent-syntax = "0.12"
-fluent_typed_decimal = "0.1.0"
+icu_decimal = { version = "2.3", features = ["alloc"] }
+icu_locale_core = "2.3"
+icu_plurals = "2.3"
 
 [build-dependencies]
 l10n = { package = "fluent_typed_codegen", path = "../..", default-features = false, features = ["build"] }
@@ -41,13 +43,18 @@ cargo tree --manifest-path examples/minimal/Cargo.toml --edges normal
 ```
 
 The executable prints the English HUD title, a greeting and a pluralized item
-count in every language. The optional application dependency
-[fluent_typed_decimal](https://github.com/SDA-31/fluent_typed_decimal) supplies
-locale-formatted text and the plural category; it is not a generator dependency.
+count in every language. The application uses
+[ICU4X DecimalFormatter](https://docs.rs/icu_decimal/latest/icu_decimal/struct.DecimalFormatter.html)
+and [PluralRules](https://docs.rs/icu_plurals/latest/icu_plurals/struct.PluralRules.html)
+directly. ICU is an example dependency, not a generator dependency. Both services
+receive the same Decimal, preserving its visible precision; the small `plural_key`
+match only translates ICU's enum into a Fluent String selector, not plural rules.
 `numbers.ftl` declares two String arguments for the Decimal path and a separate
 native Number selector. The test checks `1` versus visible `1.0`, Russian `few` /
-`many`, Spanish output and native Fluent exact-number matching. The adapter's own
-generated example additionally covers Arabic digits and Arabic plural categories.
+`many`, Spanish output and native Fluent exact-number matching. For repeated
+rendering, retain the formatter and rules per locale rather than recreate them
+per message. Apply any rounding once before passing a value to both services;
+respect ICU's documented input/operand limits when accepting arbitrary precision.
 
 Tests cover typed parameters, named nested scopes, a Rust-keyword leaf,
 structured results named `presentation::HudPrompt` (without a public `hud`
