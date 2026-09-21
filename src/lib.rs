@@ -90,10 +90,11 @@
 //! # Numbers, plural selection and presentation
 //!
 //! Native Fluent numeric selectors remain available; this generator does not
-//! replace upstream argument types or select-expression behavior. Use dedicated
+//! replace upstream argument types or select-expression behavior. For numbers,
+//! percentages, currencies and dates, it's recommended to use dedicated
 //! [ICU](https://unicode-org.github.io/icu/userguide/format_parse/) or
-//! [ICU4X](https://docs.rs/icu/) formatters for numbers, percentages, currencies
-//! and dates; formatting policies and component stability belong to the application.
+//! [ICU4X](https://docs.rs/icu/) formatters. Formatting policies and component
+//! stability belong to the application.
 //! For decimal text, use [DecimalFormatter](https://docs.rs/icu_decimal/latest/icu_decimal/struct.DecimalFormatter.html).
 //! If grammar must follow visible precision, pass the same prepared Decimal to
 //! [PluralRules](https://docs.rs/icu_plurals/latest/icu_plurals/struct.PluralRules.html).
@@ -101,6 +102,10 @@
 //! The [runnable example](https://github.com/SDA-31/fluent_typed_codegen/tree/main/examples/minimal)
 //! uses ICU directly; no special generated numeric type, generator dependency or
 //! feature is required. Respect ICU's operand limits for arbitrary-precision input.
+//! A [compact ICU walkthrough](https://github.com/SDA-31/fluent_typed_codegen#icu-example)
+//! shows reusable formatters and a numeric input. Catalogs and formatters can be
+//! kept in application state; the application decides when to recompute strings
+//! and how to use the result.
 //!
 //! String categories match literal Fluent keys such as `[one]`; unmatched strings
 //! select the starred default. Numeric exact matches such as `[1]` still require

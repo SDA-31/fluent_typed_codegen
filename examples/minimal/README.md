@@ -56,6 +56,20 @@ rendering, retain the formatter and rules per locale rather than recreate them
 per message. Apply any rounding once before passing a value to both services;
 respect ICU's documented input/operand limits when accepting arbitrary precision.
 
+## Reusing catalogs and formatters
+
+The [compact ICU walkthrough](../../README.md#icu-example)
+shows setup and a numeric argument separately. The input is a number
+(`Decimal::from(22)`), not a string parsed from localized display text.
+
+The generated `texts::Translations`, `DecimalFormatter` and `PluralRules` can be
+kept in application state or cached by locale/options. Together they produce an
+ordinary String. When the language changes, switch the catalog and services
+together; recompute strings when their values, language or formatting settings
+change. The application decides when to do this and how to use the result.
+
+## Verification
+
 Tests cover typed parameters, named nested scopes, a Rust-keyword leaf,
 structured results named `presentation::HudPrompt` (without a public `hud`
 module), inferred results, renamed macro imports, restricted visibility,
