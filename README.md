@@ -6,24 +6,47 @@
 [![MSRV](https://img.shields.io/crates/msrv/fluent_typed_codegen)](https://crates.io/crates/fluent_typed_codegen)
 [![License](https://img.shields.io/crates/l/fluent_typed_codegen)](LICENSE)
 
-Generate a typed Rust API from modular Fluent translation files. Language folders
-determine the available locales; paths within each language become named
-translation scopes, with message arguments checked at compile time.
+Generate a typed Rust API from modular Fluent translation files. Write messages
+in `.ftl` files, then call them through named Rust scopes:
+
+```rust
+translations.presentation().hud().msg_greeting("Ada")
+```
 
 Built on [fluent-typed](https://github.com/human-solutions/fluent-typed), which
 generates the typed message accessors and provides Fluent formatting. This crate
 adds module discovery and a typed translation tree around that foundation.
 
-Use it in Rust applications and libraries through a Cargo build script, or call
-the generator directly from your own build tooling.
+Language folders determine the available locales; file paths determine the Rust
+scopes. The build script checks that translations agree on their message contracts,
+and Rust checks the arguments at each call site.
 
 [API documentation](https://docs.rs/fluent_typed_codegen/latest/fluent_typed_codegen/) ·
 [Runnable Rust example](examples/minimal/README.md)
 
+## Contents
+
+- [Setup](#setup)
+- [Configuration](#configuration)
+- [Typed translation scopes](#typed-translation-scopes)
+- [Numbers, plurals and RTL](#numbers-plurals-and-rtl)
+- [Features and dependency boundaries](#features-and-dependency-boundaries)
+- [Outputs and indexing](#outputs-and-indexing)
+- [Framework extensions](#framework-extensions)
+- [Custom build tooling](#custom-build-tooling)
+- [Continuous integration](#continuous-integration)
+- [License](#license)
+
 ## Setup
 
-Add these dependencies to your application's Cargo.toml.
 The declared minimum Rust version is 1.95.
+Future releases may raise the compiler requirement; release notes will identify
+the last version supporting the previous minimum.
+
+### 1. Add the dependencies
+
+In your application's `Cargo.toml`, enable generation in the build dependency
+and the lightweight inclusion macro in the normal dependency:
 
 ```toml
 [build-dependencies]
@@ -39,14 +62,23 @@ asset-root = "assets"
 catalog = "localizations/localization.toml"
 ```
 
+### 2. Run generation from build.rs
+
+Create `build.rs` beside `Cargo.toml`:
+
 ```rust
-// build.rs
 fn main() -> std::process::ExitCode {
     fluent_typed_codegen::build()
 }
 ```
 
-`assets/localizations/localization.toml`:
+Generation is an explicit build step. The `translations!` macro used below only
+includes its output. `build()` reports readable diagnostics and returns a failing
+exit code on errors; return it from `main` so Cargo stops the build.
+
+### 3. Add the catalogs
+
+Create `assets/localizations/localization.toml`:
 
 ```toml
 translations-directory = "translations"
@@ -54,64 +86,76 @@ source-language = "en"
 default-language = "en"
 ```
 
-Put matching FTL files under
-`assets/localizations/translations/{en,es,ru}/`, grouped by responsibility.
-`translations-directory` is optional: omit it when the locale folders sit beside
-`localization.toml` (`en/`, `es/`, etc.). Its default is `"."`; a configured path is
-relative to that TOML, not Cargo.toml. The legacy `languages-directory` alias is
-accepted, but specifying both names is an error. No directory guessing is performed.
-Languages and nested modules are discovered automatically, not enumerated in Rust.
-Source-language defines keys, references and argument annotations.
-`default-language` is emitted as application startup metadata (`DEFAULT_LANGUAGE`);
-the application selects its initial locale. `Locale::default()` identifies the
-**source** language, not the configured startup language.
-Unknown fields, unsafe paths, symlinked source trees, missing
-languages/modules, duplicate keys and incompatible contracts fail generation.
+Create matching files for each language:
 
-`build` returns a failing ExitCode and readable diagnostics instead of panicking.
-`from_cargo` returns Result for custom error handling. Module mismatches identify
-missing and extra paths; the generator never repairs translator files automatically.
+```text
+assets/localizations/
+├── localization.toml
+└── translations/
+    ├── en/presentation/hud.ftl
+    └── es/presentation/hud.ftl
+```
 
-## Features and dependency boundaries
+`en/presentation/hud.ftl`:
 
-- `build` enables discovery, validation, generation and the typed extension API.
-  It is enabled by default; disable it on the application's macro-only dependency.
-- With `default-features = false` and no features, the crate has **no dependencies**
-  and exports only the `translations!` macro. Syn, quote, prettyplease, TOML parsing
-  and upstream code generation are not compiled into this instance of the crate.
+```ftl
+title = Dashboard
+# $name (String) - Person to greet.
+greeting = Hello, { $name }!
+```
 
-The macro still needs the consumer's `fluent-typed` and `fluent-syntax` runtime
-dependencies shown above; they interpret translations, not Rust source. Keep those
-two dependency names canonical when using the convenience macro. The macro crate
-itself may be renamed, as the example's `l10n::translations!` demonstrates.
+`es/presentation/hud.ftl`:
 
-Use Cargo resolver 2 or 3 (edition 2024 selects 3 unless a workspace overrides it).
-Build-dependencies are then resolved separately from normal dependencies. An
-explicit workspace-wide all-features build may still enable the generator in
-normal targets; use an isolated consumer graph when checking runtime isolation.
+```ftl
+title = Panel
+greeting = ¡Hola, { $name }!
+```
 
-## Outputs and indexing
+The source language supplies the argument annotations. Add languages and nested
+files using the same layout; no Rust list of languages or modules is needed.
 
-All outputs stay in Cargo OUT_DIR, respecting the selected profile and target:
+### 4. Use the generated API
 
-- `translations.rs`: `Translations`, `Locale`, named groups and file types.
-- `locale_modules.rs`: original module sources and build-validated metadata.
-- `validation.rs`: private checked-loading contract, emitted from the same schema
-  implementation used at build time.
-- `modules/<FTL path without extension>/translations.{rs,ftl}`: upstream API/bundle.
-- `inputs/<inventory hash>/`: persistent staging inputs for correct Cargo reruns.
+In `src/main.rs`:
 
-There is no combined root translations.ftl. Generation does not edit source
-resources or delete unrelated/stale output. Failed output may be incomplete:
-always propagate build errors. Rust-analyzer indexes through Cargo build scripts;
-`cargo check` regenerates without running the application.
+```rust
+fluent_typed_codegen::translations!(pub mod texts);
 
-Cargo tracks both the language directory (new files/locales) and each original
-FTL file (edits and removals), even when those assets are excluded from packaging.
-Removing a module from every language regenerates the API; removing it from only
-one language reports a contract mismatch. Restoring matching files recovers on the
-next build. Upstream's staged-input timestamps can require one additional rebuild
-after an edit; subsequent unchanged builds reuse the generated output.
+fn main() {
+    let translations = texts::Locale::En.load();
+    println!("{}", translations.presentation().hud().msg_greeting("Ada"));
+}
+```
+
+Run `cargo run` to print `Hello, Ada!`. Load `texts::Locale::Es` to use Spanish.
+`cargo check` also runs generation, so rust-analyzer can index the API without
+running the application. For a larger working example with checked external
+loading and localized numbers, see [examples/minimal](examples/minimal/README.md).
+
+## Configuration
+
+Paths and language policy live in two small TOML sections:
+
+| Setting | Location | Meaning |
+| --- | --- | --- |
+| `asset-root` | Cargo package metadata | Directory relative to the consuming package. |
+| `catalog` | Cargo package metadata | Configuration file relative to `asset-root`. |
+| `translations-directory` | Catalog TOML | Locale folders relative to this TOML; defaults to `"."`. |
+| `source-language` | Catalog TOML | Language defining message keys, references and argument annotations. |
+| `default-language` | Catalog TOML | Startup metadata emitted as `DEFAULT_LANGUAGE`. |
+
+Omit `translations-directory` when `en/`, `es/` and the other locale folders sit
+beside the catalog TOML. The legacy `languages-directory` alias is accepted;
+specifying both names is an error. The generator does not guess directory names.
+
+The application selects its initial locale. `default-language` records that policy;
+`Locale::default()` identifies the **source** language.
+
+Unknown fields, unsafe paths, symlinked source trees, missing languages/modules,
+duplicate keys and incompatible contracts fail generation. Module diagnostics
+list missing and extra paths; translator files are never repaired automatically.
+Use [`from_cargo`](https://docs.rs/fluent_typed_codegen/latest/fluent_typed_codegen/fn.from_cargo.html)
+for custom `Result`-based build-error handling.
 
 ## Typed translation scopes
 
@@ -125,26 +169,22 @@ fn draw(translations: &texts::Translations) {
 }
 ```
 
-This ordinary `macro_rules!` declares the module, imports the two Fluent libraries
-and includes the caller's Cargo output. It accepts module attributes, any Rust
-visibility and an optional trailing semicolon inside the invocation. It does not
-generate files, choose a language, register resources or install any framework.
-The build script remains necessary: build-dependencies alone do not make a macro
-available in application source.
+Folders become snake_case modules and named group types; each FTL file becomes
+a PascalCase leaf type. For the setup above:
 
-Manual inclusion remains supported for custom dependency aliases or frontend
-layouts; existing raw consumers do not need to add the macro dependency. Import
-their runtime libraries as `fluent_typed` and `fluent_syntax` inside the generated
-module, then include `concat!(env!("OUT_DIR"), "/translations.rs")`.
+| Catalog path | Generated type | Accessor |
+| --- | --- | --- |
+| Whole language | `texts::Translations` | `texts::Locale::En.load()` |
+| `presentation/` | `texts::Presentation` | `translations.presentation()` |
+| `presentation/hud.ftl` | `texts::presentation::Hud` | `translations.presentation().hud()` |
 
-Folders expose snake_case modules and named group types. Each FTL file exposes
-only a PascalCase leaf type, such as `presentation::Hud`, with upstream accessors
-through Deref; there is no public `presentation::hud` module. Additional upstream
-parameter/structured-result types are re-exported beside the leaf with its name
-as a prefix, such as `presentation::HudPrompt`. Collisions with sibling scope or
-message type names are reported during generation.
-Clones share immutable catalogs through Arc.
+Leaf types expose upstream message accessors through `Deref`; there is no public
+`presentation::hud` module. Additional parameter and structured-result types
+appear beside the leaf with its name as a prefix, such as `presentation::HudPrompt`.
 Equal keys in different files remain independent and may have different types.
+Clones share immutable catalogs through `Arc`.
+
+### Loading and replacing translations
 
 `Locale::load()` and `Translations::embedded(locale)` parse embedded FTL data.
 `Translations::from_modules(locale, &[("presentation/hud.ftl", source), ...])`
@@ -153,8 +193,10 @@ contracts before returning a snapshot. Prose-only edits work; missing/extra/
 duplicate modules, removed variables and changed references fail. These methods
 perform no filesystem reads: applications supply complete FTL strings, read
 external files and decide when to replace a snapshot.
-Raw consumers need both runtime dependencies above; framework bridges can
-re-export them instead.
+The application also owns UI updates. Language/module inventory or schema changes
+require regeneration.
+
+### Naming and references
 
 Names normalize to snake_case modules/accessors and PascalCase types. Keywords
 use raw identifiers. Ambiguous names and file/directory collisions are rejected.
@@ -191,15 +233,11 @@ remaining = { $plural ->
     }
 ```
 
-The resulting accessor still takes two ordinary string-compatible arguments.
-Pass the formatter's string to `value` and the category keyword to `plural`,
-following the generated parameter order. For this source template that is
-`msg_remaining(selector, text)`. The
-[runnable example](https://github.com/SDA-31/fluent_typed_codegen/tree/main/examples/minimal)
-shows both calls directly, including `1` versus visible `1.0`. No additional
-codegen feature, generated numeric type or ICU dependency in this library is needed.
-For unconstrained input precision, validate ICU's documented operand limits;
-the generator validates FTL contracts, not numeric conversion policies.
+Call `msg_remaining(selector, text)` with the category keyword and formatter's
+string, in that generated order. The [runnable example](examples/minimal/README.md)
+shows both ICU calls, including `1` versus visible `1.0`. ICU belongs in the
+application's dependencies; no generator feature or generated numeric type is
+needed. Validate ICU's documented operand limits for unconstrained input precision.
 
 With a String selector, Fluent matches literal keys such as `[one]` or `[few]`;
 it does not recompute a numeric plural rule. Each translation can use its own
@@ -213,29 +251,70 @@ Fluent handles interpolation isolation, while the application's text renderer
 owns bidi layout, shaping and fonts. This generator does not reverse strings or
 implement a rendering engine.
 
+## Features and dependency boundaries
+
+| Feature selection | API and dependencies |
+| --- | --- |
+| `build` (default) | Discovery, validation, generation and the typed extension API. Use in build-dependencies. |
+| `default-features = false`, no features | Only `translations!`; the crate has no dependencies. Use in normal dependencies. |
+
+The macro declares a module, imports the consumer's `fluent-typed` and
+`fluent-syntax` libraries, and includes Cargo output. Keep those two dependency
+names canonical. The macro crate itself can be renamed, as the example's
+`l10n::translations!` demonstrates. It accepts module attributes, any Rust visibility
+and an optional trailing semicolon inside the invocation.
+
+Use Cargo resolver 2 or 3 (edition 2024 selects 3 unless a workspace overrides it)
+to separate build and normal feature contexts. Syn, quote, prettyplease, TOML
+parsing and upstream code generation stay out of the macro-only instance. A
+workspace-wide all-features build may enable them in normal targets; verify
+runtime isolation with an isolated consumer graph.
+
+Manual inclusion supports custom runtime dependency aliases and frontend layouts.
+Import the runtime libraries as `fluent_typed` and `fluent_syntax` inside the
+generated module, then include `concat!(env!("OUT_DIR"), "/translations.rs")`.
+This approach does not require the normal macro dependency. Framework bridges
+can instead re-export the runtime libraries.
+
+## Outputs and indexing
+
+All Cargo outputs stay in `OUT_DIR`, respecting the selected profile and target:
+
+| Output | Purpose |
+| --- | --- |
+| `translations.rs` | `Translations`, `Locale`, groups and file types. |
+| `locale_modules.rs` | Original sources and build-validated metadata. |
+| `validation.rs` | Private checked-loading contract shared with build-time validation. |
+| `modules/<FTL path without extension>/translations.{rs,ftl}` | Upstream API and bundle for each file. |
+| `inputs/<inventory hash>/` | Persistent staging inputs for Cargo reruns. |
+
+There is no combined root `translations.ftl`. Generation does not edit source
+resources or delete unrelated/stale output. Failed generation may leave partial
+output, so always propagate build errors.
+
+Cargo tracks the locale directory and every original FTL file, including sources
+excluded from packaging. Adding or removing modules in every language regenerates
+the API; changing only one language reports a mismatch. Restoring matching files
+recovers on the next build. Upstream's staged-input timestamps can require one
+additional rebuild after an edit; subsequent unchanged builds reuse the output.
+
 ## Framework extensions
 
-An optional `Extension` decorates an additional entrypoint with typed Rust syntax
-for application-specific traits, attributes or registration code:
+Implement
+[`Extension`](https://docs.rs/fluent_typed_codegen/latest/fluent_typed_codegen/trait.Extension.html)
+to generate an additional entrypoint with framework traits, attributes or
+registration code. The plain tree is always generated unchanged.
 
-- `root_imports` / `scope_imports`: `Vec<syn::ItemUse>`.
-- `type_attributes`: `Vec<syn::Attribute>`.
-- `type_declaration`: a complete annotated `syn::ItemStruct` in, `syn::Item` out.
-  Its default preserves the declaration. Integrations can wrap it in a
-  runtime-owned item macro without moving dependency-feature decisions into the
-  build script. Preserve the name, visibility, fields and existing attributes.
-- `root_items`: `Vec<syn::Item>`.
-- `Scope`: a `syn::Path` and a sequence of `syn::Ident` accessor names.
+| Hook or descriptor | Syntax types |
+| --- | --- |
+| `root_imports`, `scope_imports` | `Vec<syn::ItemUse>` |
+| `type_attributes` | `Vec<syn::Attribute>` |
+| `type_declaration` | Annotated `syn::ItemStruct` in, `syn::Item` out |
+| `root_items` | `Vec<syn::Item>` |
+| `Scope` | `syn::Path` and a sequence of `syn::Ident` accessor names |
 
-Scope descriptors follow deterministic preorder; extension-specific reserved names
-are checked before output. Syn is re-exported so adapters can use the exact syntax
-types and `parse_quote!` without managing another dependency/version themselves.
-The plain tree is always generated unchanged.
-
-Use `build_with`, `from_cargo_with` or `generate_with` for such a frontend.
-Hooks construct trusted syntax, do not perform I/O and own their dependency aliases.
-Output filenames must be direct .rs children and cannot overwrite core outputs.
-For example, an attribute hook contains ordinary Rust-like syntax, not escaped strings:
+Use `build_with`, `from_cargo_with` or `generate_with` to supply the extension.
+The re-exported `syn` provides matching syntax types and `parse_quote!`:
 
 ```rust
 use fluent_typed_codegen::syn::{Attribute, parse_quote};
@@ -245,18 +324,20 @@ fn type_attributes() -> Vec<Attribute> {
 }
 ```
 
-See the `Extension` Rustdoc for a complete compiled example. Dynamic wrappers,
-locales and metadata are assembled with `quote!`; the complete file is parsed by
-Syn and printed by `prettyplease` into target/ only. No formatter process is needed,
-and this does not change the source repository's cargo fmt policy. Unmodified
-upstream module output and the shared Fluent validator retain their own formatting.
+See the linked trait documentation for a complete compiled example. Scope
+descriptors follow deterministic preorder; reserved names are checked before output.
+Hooks construct trusted syntax, perform no I/O and own their dependency aliases.
+Output filenames must be direct `.rs` children and cannot overwrite core outputs.
 
-Syntax nodes improve construction and syntax diagnostics; they do not resolve
-Rust types or imports. Consumer compilation remains necessary. Syn's opaque
-`Verbatim` fallback nodes are rejected recursively with a filename-tagged error
-before printing; emit structured supported syntax instead. Macro token bodies
-are left to Rust. The generator tests exercise syntax hooks with a standalone
-extension. Integrations should also compile a consumer of their emitted API.
+The default `type_declaration` preserves the struct. A wrapper must preserve its
+name, visibility, fields and attributes; a runtime-owned item macro can handle
+runtime dependency features without moving those decisions into the build script.
+
+Use `quote!` for dynamic syntax. Generated files are parsed by Syn and printed by
+`prettyplease` into the output directory; no formatter process changes handwritten
+sources. Opaque `Verbatim` nodes are rejected recursively before printing, while
+macro token bodies are left to Rust. Syntax validation does not resolve types or
+imports: compile a consumer of each extension's emitted API.
 
 ## Custom build tooling
 
@@ -266,7 +347,7 @@ build frontends. Choose a tool-owned directory beneath target/.
 ```sh
 git clone https://github.com/SDA-31/fluent_typed_codegen.git
 cd fluent_typed_codegen
-# Replace the input path with any package configured as shown in Setup.
+# Replace the input path with a package configured as shown in Setup.
 cargo run --manifest-path Cargo.toml --example generate -- /path/to/consumer target/localization-example-generated
 cargo test --manifest-path Cargo.toml
 cargo doc --manifest-path Cargo.toml --no-deps
@@ -277,11 +358,6 @@ after the first dependency resolution. The local lockfile and target directory
 are ignored; a consuming workspace owns its own lockfile.
 The [bundled example](examples/minimal/README.md) uses repository-local paths for
 development; external applications use the registry dependencies in Setup.
-
-The generator owns discovery, validation and emitted Rust. Your application owns
-language selection, resource loading and when to replace an existing snapshot.
-Use the generated checked `Translations::from_modules` API for external catalogs;
-the generator itself does not install a filesystem watcher or a UI update loop.
 
 ## Continuous integration
 
@@ -294,15 +370,12 @@ requests and manual dispatch. It checks this repository independently:
 - Formatting, Clippy with warnings denied, Rustdoc in both feature modes and
   compilation of the packaged archive on Linux.
 
-Nested example packages are checked explicitly; no enclosing application or
-workspace lockfile is needed. CI resolves fresh standalone lockfiles, then uses
-`--locked`. Dependency/build caches are optional accelerators, not prerequisites.
-Unix retains quoted-path coverage while all platforms exercise spaced paths.
+CI checks nested examples explicitly and resolves fresh standalone lockfiles
+before using `--locked`; no enclosing application is needed. All platforms exercise
+spaced paths, and Unix also covers quoted paths.
 
-Actions are pinned to commit SHAs, checkout credentials are not retained, and
-the workflow has only `contents: read` permission. There is no publishing job,
-registry token or automatic release. Pushing a version tag to GitHub runs checks only;
-publication to crates.io is a separate, deliberate manual step.
+Actions are pinned to commit SHAs with `contents: read` permission and no retained
+checkout credentials. Tags run checks only; crates.io publication is manual.
 
 ## License
 
