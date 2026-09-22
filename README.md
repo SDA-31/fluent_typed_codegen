@@ -310,7 +310,7 @@ For the example's Russian translation, `label` contains `Осталось 22 п�
 (with Fluent's isolation marks around the number).
 [`plural_key`](examples/minimal/src/main.rs) is the example's small enum-to-keyword
 match (`One` → `"one"`, `Few` → `"few"`, etc.), not a generator API or another
-plural-rule implementation. The [tests](examples/minimal/src/tests.rs) also cover
+plural-rule implementation. The [tests](examples/minimal/tests/unit/catalog.rs) also cover
 `1` versus visible `1.0` and native Fluent selectors.
 
 The catalog and formatters can be kept in application state and reused across

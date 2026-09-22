@@ -39,4 +39,5 @@ fn plural_key(category: PluralCategory) -> &'static str {
 }
 
 #[cfg(test)]
+#[path = "../tests/unit/catalog.rs"]
 mod tests;

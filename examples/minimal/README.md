@@ -5,6 +5,10 @@ and documentation are English; Spanish and Russian translations are included.
 Catalogs live under `assets/localizations/translations/{en,es,ru}/` with matching
 module paths. Generated files stay in Cargo OUT_DIR.
 
+Start with [main.rs](src/main.rs) for typed calls and ICU formatting, then
+[build.rs](build.rs) for the explicit generation step. Regression checks live
+separately in [tests/unit/catalog.rs](tests/unit/catalog.rs).
+
 The dependency is deliberately renamed to `l10n` in both Cargo sections.
 These paths are internal to this repository, not external installation paths;
 for your application, use the [registry dependency setup](../../README.md#setup).
@@ -75,6 +79,8 @@ structured results named `presentation::HudPrompt` (without a public `hud`
 module), inferred results, renamed macro imports, restricted visibility,
 forwarded attributes and strict external loading.
 No source files are modified by running the example.
+The test module is loaded only by `cargo test`; it shares the application's small
+plural-category helper without exposing a new public example API.
 
 Standalone clones need no sibling checkout or generator patch. The initial
 dependency resolution creates a local ignored Cargo.lock; add `--locked --offline`
