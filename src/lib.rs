@@ -86,6 +86,12 @@
 //! changes to the schema or language/module inventory require regeneration.
 //! These runtime methods perform no filesystem reads. File loading and replacing
 //! snapshots are caller-controlled, not a filesystem watcher.
+//! Sources can come from decoded archive entries or any application-owned buffers;
+//! module keys remain paths below the locale directory, not storage URLs. The
+//! returned snapshot retains no input borrows. Read a coherent revision before
+//! parsing and replace application state only after validation succeeds. Archive
+//! I/O and pack installation are not generator features; embedded fallbacks remain.
+//! See the [external storage guide](https://github.com/SDA-31/fluent_typed_codegen#external-storage-and-translation-packs).
 //!
 //! # Numbers, plural selection and presentation
 //!

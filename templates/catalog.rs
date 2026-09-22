@@ -17,6 +17,11 @@ impl Translations {
 	/// incompatible Fluent schemas reject the entire candidate, not just one module.
 	/// Each pair contains a path below the language directory and its complete FTL
 	/// source, e.g. `("presentation/hud.ftl", source)`.
+	/// These are logical module paths, not filesystem locations or asset-source URLs.
+	/// The caller may read/decompress an archive or use any other storage, then pass
+	/// its UTF-8 strings here. This method performs no I/O and retains no borrows
+	/// into the input buffers. Supply one coherent revision for the entire language;
+	/// compatibility validation cannot detect a mix of otherwise valid revisions.
 	///
 	/// # Errors
 	/// Returns module-inventory, Fluent key/reference or upstream typed-contract

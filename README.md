@@ -29,6 +29,7 @@ and Rust checks the arguments at each call site.
 - [Setup](#setup)
 - [Configuration](#configuration)
 - [Typed translation scopes](#typed-translation-scopes)
+- [External storage and translation packs](#external-storage-and-translation-packs)
 - [Numbers, plurals and RTL](#numbers-plurals-and-rtl)
 - [Features and dependency boundaries](#features-and-dependency-boundaries)
 - [Outputs and indexing](#outputs-and-indexing)
@@ -203,6 +204,44 @@ use raw identifiers. Ambiguous names and file/directory collisions are rejected.
 Local messages, terms and attributes may reference one another in the same file;
 missing references and cycles fail. Cross-file references/shared-term imports
 are not supported. Existing key prefixes are not rewritten.
+
+## External storage and translation packs
+
+Generated `Translations::from_modules` accepts UTF-8 FTL strings from any storage:
+loose files, decoded archive entries, a cache or application-owned buffers. It
+does not open files or implement archive formats. For example, after a caller has
+collected one complete language in a `BTreeMap<String, String>` named `files`:
+
+```rust
+let modules: Vec<_> = files.iter()
+    .map(|(path, source)| (path.as_str(), source.as_str()))
+    .collect();
+let next = texts::Translations::from_modules(locale, &modules)?;
+current = next; // Replace only after the complete candidate validates.
+```
+
+Keys are paths **below the locale directory**, e.g. `ui/menu.ftl`, not
+`en/ui/menu.ftl`, absolute paths or `pack://...` URLs. Input order does not matter;
+the returned snapshot owns its parsed data, so callers can release input buffers.
+Supply one consistent revision: schema checks cannot detect mixed but individually
+compatible prose revisions. The application owns publication and UI updates.
+
+Build-time discovery still reads the source tree through an explicit `build.rs`.
+There is no archive option in the generator. For runtime distribution, package
+the original per-language FTL files, not generated Rust or intermediate bundles
+under `OUT_DIR`. `MODULES` records `(locale, relative module path, embedded source)`;
+`CATALOG_ASSET_PATH` and `LANGUAGES_DIRECTORY` describe the definition and layout.
+`ASSET_ROOT` is a build-time location, not a runtime storage requirement.
+
+Bevy consumers additionally package the original definition TOML and preserve
+its relative directory layout. The
+[Bevy source integration](https://github.com/SDA-31/bevy_fluent_typed/blob/main/docs/asset-sources.md)
+uses this same checked parser through a named asset source, then updates resources
+and bound text. Other applications can call `from_modules` directly.
+
+Compatible prose updates need no new executable. Compiled locales, module paths
+and typed contracts still require regeneration when changed. Embedded fallbacks
+remain in the binary; external storage is not an external-only generation mode.
 
 ## Numbers, plurals and RTL
 

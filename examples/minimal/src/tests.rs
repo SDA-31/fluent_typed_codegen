@@ -129,3 +129,38 @@ fn checked_loading_preserves_the_generated_contract() {
 		assert!(texts::Translations::from_modules(locale, &invalid).is_err());
 	}
 }
+
+#[test]
+fn owned_virtual_modules_load_without_files_and_outlive_their_input_buffers() {
+	// A decoded archive/index can supply these same owned strings. No filesystem,
+	// Bevy source prefix or archive-specific dependency belongs in generated parsing.
+	let mut files: std::collections::BTreeMap<String, String> = texts::MODULES
+		.iter()
+		.filter(|(locale, _, _)| *locale == "en")
+		.map(|(_, path, source)| ((*path).into(), (*source).into()))
+		.collect();
+	let hud = files.get_mut("presentation/hud.ftl").unwrap();
+	*hud = hud.replacen("title = Status", "title = External status", 1);
+	let mut current = texts::Locale::En.load();
+	let borrowed: Vec<_> = files
+		.iter()
+		.rev()
+		.map(|(path, source)| (path.as_str(), source.as_str()))
+		.collect();
+	let candidate = texts::Translations::from_modules(texts::Locale::En, &borrowed).unwrap();
+	assert_eq!(current.presentation().hud().msg_title(), "Status");
+	current = candidate;
+	drop(borrowed);
+
+	// A malformed next candidate cannot mutate the independently owned snapshot.
+	files.insert("ui.ftl".into(), "greeting = { $unknown }".into());
+	let borrowed: Vec<_> = files
+		.iter()
+		.map(|(path, source)| (path.as_str(), source.as_str()))
+		.collect();
+	assert!(texts::Translations::from_modules(texts::Locale::En, &borrowed).is_err());
+	drop(borrowed);
+	drop(files);
+	assert_eq!(current.presentation().hud().msg_title(), "External status");
+	assert!(current.ui().msg_greeting("Ada").contains("Ada"));
+}

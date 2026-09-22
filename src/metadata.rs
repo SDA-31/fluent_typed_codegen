@@ -35,7 +35,8 @@ pub(super) fn render(
 	}
 
 	Ok(quote! {
-		/// Asset root relative to the consuming Cargo package.
+		/// Build-time asset root relative to the consuming Cargo package.
+		/// Runtime storage may use a different root or a virtual asset source.
 		pub const ASSET_ROOT: &str = #asset_root;
 		/// Definition asset path relative to ASSET_ROOT.
 		pub const CATALOG_ASSET_PATH: &str = #catalog;
@@ -48,6 +49,7 @@ pub(super) fn render(
 		/// Unmodified definition text embedded at build time.
 		pub const CATALOG_CONFIG: &str = include_str!(#configuration);
 		/// Embedded modules as (locale code, path below that locale, original FTL source).
+		/// Module paths are logical addresses, independent of the runtime storage format.
 		pub const MODULES: &[(&str, &str, &str)] = &[#(#modules,)*];
 	})
 }
