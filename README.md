@@ -22,7 +22,7 @@ scopes. The build script checks that translations agree on their message contrac
 and Rust checks the arguments at each call site.
 
 [API documentation](https://docs.rs/fluent_typed_codegen/latest/fluent_typed_codegen/) ·
-[Runnable Rust example](examples/minimal/README.md)
+[Runnable Rust example](examples/minimal/README.md) · [Changelog](CHANGELOG.md)
 
 ## Contents
 
@@ -51,10 +51,10 @@ and the lightweight inclusion macro in the normal dependency:
 
 ```toml
 [build-dependencies]
-fluent_typed_codegen = { version = "0.1.3", default-features = false, features = ["build"] }
+fluent_typed_codegen = { version = "0.1.4", default-features = false, features = ["build"] }
 
 [dependencies]
-fluent_typed_codegen = { version = "0.1.3", default-features = false }
+fluent_typed_codegen = { version = "0.1.4", default-features = false }
 fluent-typed = { version = "0.9.0", default-features = false, features = ["langneg"] }
 fluent-syntax = "0.12"
 
