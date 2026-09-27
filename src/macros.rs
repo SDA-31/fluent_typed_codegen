@@ -13,7 +13,7 @@
 /// ```
 ///
 /// This example needs application-owned FTL and build output; the
-/// [runnable example](https://github.com/SDA-31/fluent_typed_codegen/tree/feat/runtime-module-loading/examples/minimal)
+/// [runnable example](https://github.com/SDA-31/fluent_typed_codegen/tree/main/examples/minimal)
 /// provides a complete consumer. Attributes, Rust visibility and a
 /// trailing semicolon inside the invocation are optional. The macro only declares
 /// the module, imports the Fluent libraries and includes Cargo output; it neither

@@ -1,8 +1,10 @@
 //! Generate typed Rust translation APIs from modular Fluent catalogs.
 //!
-//! This checkout documents the unreleased 0.2.0 runtime-loading API. The published
-//! 0.1.4 release has the previous embedded API; use the Git dependency shown in
-//! the [setup guide](https://github.com/SDA-31/fluent_typed_codegen/tree/feat/runtime-module-loading#setup).
+//! This reference documents the 0.2.0 runtime-loading API. See the
+//! [setup guide](https://github.com/SDA-31/fluent_typed_codegen/tree/main#setup)
+//! for installation, and the
+//! [migration guide](https://github.com/SDA-31/fluent_typed_codegen/blob/main/docs/migration-0.2.md)
+//! when upgrading from 0.1.4.
 //!
 //! Language directories are discovered automatically. FTL file paths become
 //! named Rust types, and message parameters become typed accessor arguments.
@@ -22,7 +24,7 @@
 //!   requires the application's `fluent-typed` and `fluent-syntax` dependencies.
 //!
 //! Cargo resolver 2/3 keeps the build and normal feature contexts separate.
-//! See the [dependency setup](https://github.com/SDA-31/fluent_typed_codegen/tree/feat/runtime-module-loading#setup)
+//! See the [dependency setup](https://github.com/SDA-31/fluent_typed_codegen/tree/main#setup)
 //! for the build and runtime dependency declarations.
 //!
 //! # Configure the consuming package
@@ -75,7 +77,7 @@
 //! ```
 //!
 //! This snippet needs consumer-owned FTL and build output; the
-//! [runnable Rust example](https://github.com/SDA-31/fluent_typed_codegen/tree/feat/runtime-module-loading/examples/minimal)
+//! [runnable Rust example](https://github.com/SDA-31/fluent_typed_codegen/tree/main/examples/minimal)
 //! demonstrates the complete setup. There is no public module at a leaf path.
 //! Message keys in different files stay independent, including their argument types.
 //!
@@ -106,7 +108,7 @@
 //! and `module = texts::Ui` includes the group's descendants, in every language.
 //! Use a generated type path or a `use` alias, not a `type` alias or generic parameter.
 //! Unselected FTL is not included even in unoptimized builds without LTO or stripping.
-//! See the [complete loading recipes](https://github.com/SDA-31/fluent_typed_codegen/blob/feat/runtime-module-loading/docs/loading.md)
+//! See the [complete loading recipes](https://github.com/SDA-31/fluent_typed_codegen/blob/main/docs/loading.md)
 //! for bytes, files, embedding, all languages and explicit module lifetimes.
 //!
 //! # Numbers, plural selection and presentation
@@ -121,10 +123,10 @@
 //! If grammar must follow visible precision, pass the same prepared Decimal to
 //! [PluralRules](https://docs.rs/icu_plurals/latest/icu_plurals/struct.PluralRules.html).
 //! Annotate the displayed text and category keyword as `(String)` in source FTL.
-//! The [runnable example](https://github.com/SDA-31/fluent_typed_codegen/tree/feat/runtime-module-loading/examples/minimal)
+//! The [runnable example](https://github.com/SDA-31/fluent_typed_codegen/tree/main/examples/minimal)
 //! uses ICU directly; no special generated numeric type, generator dependency or
 //! feature is required. Respect ICU's operand limits for arbitrary-precision input.
-//! A [compact ICU walkthrough](https://github.com/SDA-31/fluent_typed_codegen/tree/feat/runtime-module-loading#icu-example)
+//! A [compact ICU walkthrough](https://github.com/SDA-31/fluent_typed_codegen/tree/main#icu-example)
 //! shows reusable formatters and a numeric input. Catalogs and formatters can be
 //! kept in application state; the application decides when to recompute strings
 //! and how to use the result.
@@ -140,9 +142,9 @@
 //! With `build`, `Extension` adds an entrypoint decorated with typed Rust syntax,
 //! while preserving the plain generated API. It can add attributes, imports or
 //! application-specific registration code. See the
-//! [extension guide](https://github.com/SDA-31/fluent_typed_codegen/tree/feat/runtime-module-loading#framework-extensions)
+//! [extension guide](https://github.com/SDA-31/fluent_typed_codegen/tree/main#framework-extensions)
 //! for its syntax hooks and consumer-compilation requirements.
-//! Repository links follow the unreleased branch; this API reference describes the viewed version.
+//! Repository links follow main; this API reference describes the viewed version.
 #![warn(missing_docs)]
 mod macros;
 mod manifest;
