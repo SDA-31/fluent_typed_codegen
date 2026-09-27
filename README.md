@@ -6,9 +6,9 @@
 [![MSRV](https://img.shields.io/crates/msrv/fluent_typed_codegen)](https://crates.io/crates/fluent_typed_codegen)
 [![License](https://img.shields.io/crates/l/fluent_typed_codegen)](LICENSE)
 
-**Unreleased API on `feat/runtime-module-loading`.** Published 0.1.4 retains the
+**0.2.0 (Unreleased) on `feat/runtime-module-loading`.** Published 0.1.4 retains the
 previous embedded API. The instructions below pin a tested Git revision of the
-new API. Installing `fluent_typed_codegen = "0.1.4"` will not provide it.
+new API; that snapshot still has its previous package version. Installing `fluent_typed_codegen = "0.1.4"` will not provide it.
 
 Generate a typed Rust API from modular Fluent translation files. Write messages
 in `.ftl` files, then call them through named Rust scopes:

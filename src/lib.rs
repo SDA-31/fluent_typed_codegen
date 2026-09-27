@@ -1,6 +1,6 @@
 //! Generate typed Rust translation APIs from modular Fluent catalogs.
 //!
-//! This checkout documents the unreleased runtime-loading API. The published
+//! This checkout documents the unreleased 0.2.0 runtime-loading API. The published
 //! 0.1.4 release has the previous embedded API; use the Git dependency shown in
 //! the [setup guide](https://github.com/SDA-31/fluent_typed_codegen/tree/feat/runtime-module-loading#setup).
 //!

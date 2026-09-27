@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — runtime module loading
+## 0.2.0 (Unreleased) — runtime module loading
 
 - Generate schema and typed accessors without mandatory embedded FTL. Explicit
   `embed_manifest!()` includes the whole set; `module = "ui/menu.ftl"` selects a leaf.
