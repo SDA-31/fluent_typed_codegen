@@ -6,13 +6,13 @@ use icu_plurals::{PluralCategory, PluralRules};
 l10n::translations!(pub mod texts);
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-	let translations: texts::Translations = texts::Locale::En.load();
+	let translations: texts::Translations = load(texts::Locale::En)?;
 	let presentation: &texts::Presentation = translations.presentation();
 	let hud: &texts::presentation::Hud = presentation.hud();
 	println!("{}", hud.msg_title());
 
 	for locale in [texts::Locale::En, texts::Locale::Es, texts::Locale::Ru] {
-		let translations = locale.load();
+		let translations = load(locale)?;
 		let language: Locale = locale.as_ref().parse()?;
 		let formatter = DecimalFormatter::try_new((&language).into(), Default::default())?;
 		let rules = PluralRules::try_new_cardinal((&language).into())?;
@@ -24,6 +24,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 	}
 
 	Ok(())
+}
+
+// Embedding is an explicit application choice. Merely generating/accessing the
+// schema does not expand this recipe or include its FTL bytes.
+fn load(locale: texts::Locale) -> Result<texts::Translations, texts::LoadError> {
+	let manifest = texts::embed_manifest!();
+	texts::Translations::from_manifest(locale, &manifest)
 }
 
 /// Map ICU's category to a literal Fluent String selector; no plural rules live here.

@@ -27,11 +27,7 @@ pub(super) fn render(
 	for module in &sources.modules {
 		let language = &module.language;
 		let path = &module.path;
-		let absolute = module
-			.absolute
-			.to_str()
-			.ok_or("module path must be UTF-8")?;
-		modules.push(quote!((#language, #path, include_str!(#absolute))));
+		modules.push(quote!((#language, #path)));
 	}
 
 	Ok(quote! {
@@ -48,8 +44,8 @@ pub(super) fn render(
 		pub const LANGUAGES_DIRECTORY: &str = #languages_directory;
 		/// Unmodified definition text embedded at build time.
 		pub const CATALOG_CONFIG: &str = include_str!(#configuration);
-		/// Embedded modules as (locale code, path below that locale, original FTL source).
+		/// Known modules as (locale code, logical path below that locale), without FTL data.
 		/// Module paths are logical addresses, independent of the runtime storage format.
-		pub const MODULES: &[(&str, &str, &str)] = &[#(#modules,)*];
+		pub const MODULES: &[(&str, &str)] = &[#(#modules,)*];
 	})
 }

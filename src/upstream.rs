@@ -68,7 +68,100 @@ pub(super) fn generate(
 
 		try_build_from_locales_folder(options)
 			.map_err(|error| format!("module `{path}`: {error}"))?;
+		remove_embedded(&module_output.join("translations.rs"))
+			.map_err(|error| format!("module `{path}`: {error}"))?;
 	}
 
 	Ok(())
+}
+
+/// Remove upstream's storage policy while preserving typed message accessors.
+/// Reject an unfamiliar generator shape instead of silently shipping FTL payloads.
+fn remove_embedded(output: &Path) -> Result<(), String> {
+	use syn::{ImplItem, Item, Type, parse_quote};
+
+	let text = fs::read_to_string(output).map_err(|error| error.to_string())?;
+	let mut syntax = syn::parse_file(&text).map_err(|error| error.to_string())?;
+	let mut data = false;
+	let mut contracts = false;
+	let mut removed = std::collections::BTreeSet::new();
+	let mut items = Vec::new();
+
+	for mut item in syntax.items {
+		match &mut item {
+			Item::Static(value) if value.ident == "LANG_DATA" => {
+				if data
+					|| !matches!(value.expr.as_ref(), syn::Expr::Macro(value) if value.mac.path.is_ident("include_bytes"))
+				{
+					return Err("unsupported upstream LANG_DATA shape".into());
+				}
+
+				data = true;
+				continue;
+			}
+			Item::Static(value) if value.ident == "MESSAGE_CONTRACTS" => {
+				contracts = true;
+			}
+			Item::Static(value)
+				if value.ident != "ALL_LANGS"
+					&& !matches!(value.ty.as_ref(), Type::Path(ty) if ty.path.is_ident("LanguageIdentifier")) =>
+			{
+				return Err(format!("unsupported upstream static: {}", value.ident));
+			}
+			Item::Const(value) => {
+				return Err(format!("unsupported upstream constant: {}", value.ident));
+			}
+			Item::Use(import) if matches!(&import.tree, syn::UseTree::Path(path) if path.ident == "std") =>
+			{
+				item = parse_quote! {
+					use std::{fmt::Display, ops::Deref, slice::Iter, str::FromStr};
+				};
+			}
+			Item::Impl(implementation)
+				if implementation.trait_.is_none()
+					&& matches!(implementation.self_ty.as_ref(), Type::Path(ty) if ty.path.is_ident("L10n")) =>
+			{
+				let mut retained = Vec::new();
+
+				for item in std::mem::take(&mut implementation.items) {
+					let ImplItem::Fn(function) = &item else {
+						return Err("unsupported upstream L10n item".into());
+					};
+					let name = function.sig.ident.to_string();
+
+					match name.as_str() {
+						"byte_range" | "load" | "load_all" | "language_name" => {
+							removed.insert(name);
+						}
+						"iter" | "langneg" => retained.push(item),
+						_ => return Err(format!("unsupported upstream L10n method: {name}")),
+					}
+				}
+
+				implementation.items = retained;
+			}
+			_ => {}
+		}
+
+		items.push(item);
+	}
+
+	if !data
+		|| !contracts
+		|| !["byte_range", "load", "load_all"]
+			.iter()
+			.all(|name| removed.contains(*name))
+	{
+		return Err(
+			"unsupported upstream generation shape: missing embedded helpers/contracts".into(),
+		);
+	}
+
+	items.push(parse_quote! {
+		pub(super) fn __validate(bytes: &[u8]) -> Result<(), L10nError> {
+			validate_ftl(bytes, MESSAGE_CONTRACTS)
+		}
+	});
+	syntax.items = items;
+	fs::write(output, prettyplease::unparse(&syntax)).map_err(|error| error.to_string())
 }

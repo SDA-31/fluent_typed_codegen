@@ -1,10 +1,12 @@
-//! Emit named catalog/group wrappers around unmodified upstream typed APIs.
+//! Emit independent catalog/group wrappers around upstream typed message APIs.
 use crate::{
-	Extension, Scope, discovery::CatalogSources, locale, message_types::MessageTypes, tree::Node,
+	Extension, Scope, discovery::CatalogSources, locale, message_types::MessageTypes, schema,
+	tree::Node,
 };
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{Ident, Path, Visibility, parse_quote};
+use std::{collections::BTreeMap, fs};
+use syn::{Ident, Path, parse_quote};
 
 pub(super) fn render(
 	root: &Node,
@@ -16,7 +18,24 @@ pub(super) fn render(
 		.map(|extension| extension.root_imports())
 		.unwrap_or_default();
 	let locale = locale::render(sources)?;
-	let tree = render_node(root, true, 0, message_types, extension);
+	let embedded = crate::embedding::Recipes::new(sources)?;
+	let mut schemas = BTreeMap::new();
+
+	for module in sources
+		.modules
+		.iter()
+		.filter(|module| module.language == sources.configuration.source_language)
+	{
+		let source = fs::read_to_string(&module.absolute).map_err(|error| error.to_string())?;
+		schemas.insert(
+			module.path.trim_end_matches(".ftl").to_owned(),
+			schema::schema(&source)?,
+		);
+	}
+
+	let tree = render_node(root, true, message_types, &schemas, &embedded, extension);
+	let errors = syn::parse_file(include_str!("../templates/error.rs"))
+		.map_err(|error| format!("error template: {error}"))?;
 	let catalog = syn::parse_file(include_str!("../templates/catalog.rs"))
 		.map_err(|error| format!("catalog template: {error}"))?;
 	let mut scopes = Vec::new();
@@ -42,7 +61,13 @@ pub(super) fn render(
 			include!("validation.rs");
 		}
 
+		/// Shared source contract and I/O error types, independent of this generated schema.
+		#[doc(inline)]
+		#[allow(unused_imports)]
+		pub use __fluent_codegen::{LocalizationManifest, ManifestError};
+
 		#locale
+		#errors
 		#tree
 		#catalog
 		#(#items)*
@@ -52,17 +77,18 @@ pub(super) fn render(
 fn render_node(
 	node: &Node,
 	root: bool,
-	depth: usize,
 	message_types: &MessageTypes,
+	schemas: &BTreeMap<String, schema::Schema>,
+	embedded: &crate::embedding::Recipes<'_>,
 	extension: Option<&dyn Extension>,
 ) -> TokenStream {
 	let ty = identifier(&node.ty);
 	let name = (!root).then(|| identifier(&node.name));
 	let implementation = identifier(&format!("__leaf_{}", node.name.trim_start_matches("r#")));
-	let visibility: Visibility = if depth == 0 {
-		Visibility::Inherited
+	let visibility = if node.path.contains('/') {
+		quote!(pub(super))
 	} else {
-		parse_quote!(pub(super))
+		quote!()
 	};
 
 	let kind = if node.leaf.is_some() {
@@ -95,49 +121,134 @@ fn render_node(
 			}
 		})
 		.collect();
-	let locale_field = root.then(|| quote!(locale: Locale,));
-	let locale_value = root.then(|| quote!(locale,));
-
-	let (definition, embedded, external) = if node.leaf.is_some() {
+	let (definition, constructors, external, validation) = if node.leaf.is_some() {
 		let module = format!("{}.ftl", node.path);
+		let entries = schemas[&node.path].iter().map(|(key, references)| {
+			let references: Vec<_> = references.iter().collect();
+			quote!((#key, &[#(#references,)*]))
+		});
 		(
 			quote! {
-				pub struct #ty(::std::sync::Arc<#implementation::L10nLanguage>);
+				pub struct #ty(::std::sync::Arc<#implementation::L10nLanguage>, Locale);
 			},
 			quote! {
-				Self(::std::sync::Arc::new(
-					locale.as_ref().parse::<#implementation::L10n>()
-						.expect("build-validated module locale").load()
-				))
+				/// Logical FTL path below a locale, independent of runtime storage.
+				pub const PATH: &'static str = #module;
+
+				/// Language represented by this immutable module.
+				pub fn locale(&self) -> Locale {
+					self.1
+				}
+
+				/// Validate UTF-8, Fluent syntax and the generated message contract, then load.
+				///
+				/// # Errors
+				/// Rejects invalid or incompatible FTL. No input borrow is retained.
+				pub fn new(locale: Locale, bytes: &[u8]) -> ::std::result::Result<Self, LoadError> {
+					Self::validate(bytes).map_err(|error| match error {
+						LoadError::Module { path, message, .. } => LoadError::Module {
+							locale: ::std::option::Option::Some(locale), path, message,
+						},
+						other => other,
+					})?;
+					Self::new_unchecked(locale, bytes)
+				}
+
+				/// Load UTF-8 FTL without checking its generated message contract.
+				///
+				/// This safe method still parses Fluent. Incompatible messages can cause
+				/// accessor panics or formatting failures. No input borrow is retained.
+				///
+				/// # Errors
+				/// Rejects invalid UTF-8 or Fluent syntax.
+				pub fn new_unchecked(locale: Locale, bytes: &[u8]) -> ::std::result::Result<Self, LoadError> {
+					#implementation::L10nLanguage::new(locale, bytes)
+						.map(|catalog| Self(::std::sync::Arc::new(catalog), locale))
+						.map_err(|error| LoadError::Module {
+							locale: ::std::option::Option::Some(locale), path: Self::PATH.into(), message: error.to_string(),
+						})
+				}
+
+				/// Check the module contract without retaining a parsed catalog.
+				///
+				/// Parsing uses temporary allocations; a later constructor parses again.
+				///
+				/// # Errors
+				/// Rejects invalid UTF-8, Fluent syntax or changed keys/references/contracts.
+				pub fn validate(bytes: &[u8]) -> ::std::result::Result<(), LoadError> {
+					let check = || -> ::std::result::Result<(), ::std::string::String> {
+						let source = ::std::str::from_utf8(bytes).map_err(|error| error.to_string())?;
+						__validation::validate_schema(source, &[#(#entries,)*])?;
+						#implementation::__validate(bytes).map_err(|error| error.to_string())
+					};
+					check().map_err(|message| LoadError::Module {
+						locale: ::std::option::Option::None, path: Self::PATH.into(), message,
+					})
+				}
+
+				/// Read and validate this module from an explicit file or embedded manifest.
+				///
+				/// # Errors
+				/// Returns source, UTF-8, syntax or message-contract diagnostics.
+				pub fn from_manifest(locale: Locale, manifest: &LocalizationManifest) -> ::std::result::Result<Self, LoadError> {
+					let bytes = manifest.read(locale.as_ref(), Self::PATH)?;
+					Self::new(locale, &bytes)
+				}
 			},
 			quote! {
 				let source = sources.get(#module)
-					.ok_or_else(|| format!("missing module: {}", #module))?;
+					.ok_or_else(|| LoadError::MissingModules {
+						locale: ::std::option::Option::Some(locale), paths: ::std::vec![#module.into()],
+					})?;
 
-				#implementation::L10nLanguage::new_external(locale, source.as_bytes())
-					.map(|catalog| Self(::std::sync::Arc::new(catalog)))
-					.map_err(|error| format!("{}: {error}", #module))
+				if checked {
+					Self::new(locale, source.as_bytes())
+				} else {
+					Self::new_unchecked(locale, source.as_bytes())
+				}
+			},
+			quote! {
+				let source = sources.get(#module)
+					.ok_or_else(|| LoadError::MissingModules {
+						locale: ::std::option::Option::None, paths: ::std::vec![#module.into()],
+					})?;
+				Self::validate(source.as_bytes())
 			},
 		)
 	} else {
 		(
 			quote! {
 				pub struct #ty {
-					#locale_field
+					locale: Locale,
 					#(#fields: #types,)*
 				}
 			},
 			quote! {
-				Self {
-					#locale_value
-					#(#fields: #types::__embedded(locale),)*
+				/// Language represented by this complete, immutable scope.
+				pub fn locale(&self) -> Locale {
+					self.locale
+				}
+
+				/// Assemble a complete scope from already loaded immediate children.
+				/// This integration hook shares their resources without rereading or parsing.
+				#[doc(hidden)]
+				pub fn __from_parts(locale: Locale, #(#fields: #types,)*) -> ::std::result::Result<Self, LoadError> {
+					if false #(|| #fields.locale() != locale)* {
+						return ::std::result::Result::Err(LoadError::LocaleMismatch);
+					}
+
+					::std::result::Result::Ok(Self { locale, #(#fields,)* })
 				}
 			},
 			quote! {
 				::std::result::Result::Ok(Self {
-					#locale_value
-					#(#fields: #types::__external(locale, sources)?,)*
+					locale,
+					#(#fields: #types::__external(locale, sources, checked)?,)*
 				})
+			},
+			quote! {
+				#(#types::__validate(sources)?;)*
+				::std::result::Result::Ok(())
 			},
 		)
 	};
@@ -171,21 +282,26 @@ fn render_node(
 		None => syn::Item::Struct(declaration),
 	};
 
+	let embedding = embedded.scope(node);
 	let declarations = quote! {
 		#declaration
+		#embedding
 
 		impl #ty {
 			#(#accessors)*
 
-			#visibility fn __embedded(locale: Locale) -> Self {
-				#embedded
-			}
+			#constructors
 
 			#visibility fn __external(
 				locale: Locale,
 				sources: &::std::collections::BTreeMap<&str, &str>,
-			) -> ::std::result::Result<Self, ::std::string::String> {
+				checked: bool,
+			) -> ::std::result::Result<Self, LoadError> {
 				#external
+			}
+
+			#visibility fn __validate(sources: &::std::collections::BTreeMap<&str, &str>) -> ::std::result::Result<(), LoadError> {
+				#validation
 			}
 		}
 	};
@@ -228,15 +344,10 @@ fn render_node(
 		};
 	}
 
-	let children = node.children.values().map(|child| {
-		render_node(
-			child,
-			false,
-			if root { depth } else { depth + 1 },
-			message_types,
-			extension,
-		)
-	});
+	let children = node
+		.children
+		.values()
+		.map(|child| render_node(child, false, message_types, schemas, embedded, extension));
 
 	if root {
 		return quote! {
@@ -255,7 +366,7 @@ fn render_node(
 
 		#[doc = #description]
 		pub mod #name {
-			use super::{fluent_typed, Locale};
+			use super::{fluent_typed, Locale, LoadError, LocalizationManifest, __validation, __fluent_codegen};
 			#(#imports)*
 			#(#children)*
 		}
@@ -291,6 +402,8 @@ fn collect_scopes(node: &Node, namespace: &[Ident], accessors: &[Ident], scopes:
 	scopes.push(Scope {
 		type_path: parse_quote!(#(#namespace::)* #ty),
 		accessors: accessors.to_vec(),
+		logical_path: node.path.clone(),
+		module_path: node.leaf.map(|_| format!("{}.ftl", node.path)),
 	});
 	let mut child_namespace = namespace.to_vec();
 

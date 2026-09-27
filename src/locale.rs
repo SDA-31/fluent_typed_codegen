@@ -79,11 +79,6 @@ pub(super) fn render(sources: &CatalogSources) -> Result<TokenStream, String> {
 			pub fn iter() -> ::std::slice::Iter<'static, Self> {
 				[#(Self::#identifiers,)*].iter()
 			}
-
-			/// Load the full tree of embedded catalogs for this language.
-			pub fn load(self) -> Translations {
-				Translations::embedded(self)
-			}
 		}
 	})
 }

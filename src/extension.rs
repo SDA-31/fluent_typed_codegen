@@ -10,6 +10,10 @@ pub struct Scope {
 	pub type_path: Path,
 	/// Rust method names, e.g. `["presentation", "hud"]`; empty for the root.
 	pub accessors: Vec<Ident>,
+	/// Extensionless logical scope path; empty for the root.
+	pub logical_path: String,
+	/// Logical FTL path for a leaf, or `None` for the root and directory groups.
+	pub module_path: Option<String>,
 }
 
 /// Syntax-level extension for a consuming framework's generated entrypoint.

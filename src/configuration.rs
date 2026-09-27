@@ -1,13 +1,17 @@
 //! Build-time localization.toml input; runtime integrations own their transport.
+#[cfg(any(feature = "build", feature = "manifest"))]
 use crate::paths;
 use std::path::PathBuf;
+#[cfg(any(feature = "build", feature = "manifest"))]
 use toml_edit::{DocumentMut, Table};
 
 /// Contents of `localization.toml`, separate from Cargo's asset-path settings.
 ///
-/// Languages are discovered as directories, not enumerated in this configuration.
-/// Changing these settings requires regeneration. Compatible text edits can be
-/// loaded externally without rebuilding; embedded translations require a rebuild.
+/// At build time, languages are discovered as directories, not enumerated here.
+/// Changes to compiled languages, modules or typed message contracts require
+/// regeneration. Runtime manifests may point to a different translation directory
+/// with the same contracts. Compatible text edits can be loaded from files without
+/// rebuilding; changing explicitly embedded translations requires a rebuild.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CatalogConfig {
 	/// Resolved `translations-directory`, relative to the configuration file.
@@ -20,6 +24,7 @@ pub struct CatalogConfig {
 	pub default_language: String,
 }
 
+#[cfg(any(feature = "build", feature = "manifest"))]
 impl CatalogConfig {
 	/// Parse TOML, rejecting unknown fields, missing language fields and unsafe paths.
 	///
@@ -65,6 +70,7 @@ impl CatalogConfig {
 	}
 }
 
+#[cfg(any(feature = "build", feature = "manifest"))]
 fn translations_directory(table: &Table) -> Result<String, String> {
 	match (
 		table.contains_key("translations-directory"),
@@ -79,6 +85,7 @@ fn translations_directory(table: &Table) -> Result<String, String> {
 	}
 }
 
+#[cfg(any(feature = "build", feature = "manifest"))]
 fn check_fields(table: &Table, allowed: &[&str]) -> Result<(), String> {
 	for (key, _) in table {
 		if !allowed.contains(&key) {
@@ -89,6 +96,7 @@ fn check_fields(table: &Table, allowed: &[&str]) -> Result<(), String> {
 	Ok(())
 }
 
+#[cfg(any(feature = "build", feature = "manifest"))]
 fn string_field(table: &Table, key: &str) -> Result<String, String> {
 	table
 		.get(key)

@@ -1,5 +1,9 @@
 //! Generate typed Rust translation APIs from modular Fluent catalogs.
 //!
+//! This checkout documents the unreleased 0.2.0 runtime-loading API. The published
+//! 0.1.4 release has the previous embedded API; use the Git dependency shown in
+//! the [setup guide](https://github.com/SDA-31/fluent_typed_codegen/tree/feat/runtime-module-loading#setup).
+//!
 //! Language directories are discovered automatically. FTL file paths become
 //! named Rust types, and message parameters become typed accessor arguments.
 //!
@@ -12,12 +16,13 @@
 //!
 //! - **`build` (default):** discovery, schema validation, source generation and
 //!   the `Extension` API for custom integrations. Enable in build-dependencies.
-//! - **No default features:** only the dependency-free [`translations!`] macro.
+//! - **`manifest`:** optional TOML parsing and file-manifest factory.
+//! - **No default features:** [`translations!`] and std-only source contracts, with no dependencies.
 //!   Use this configuration in normal dependencies. The generated code still
 //!   requires the application's `fluent-typed` and `fluent-syntax` dependencies.
 //!
 //! Cargo resolver 2/3 keeps the build and normal feature contexts separate.
-//! See the [dependency setup](https://github.com/SDA-31/fluent_typed_codegen#setup)
+//! See the [dependency setup](https://github.com/SDA-31/fluent_typed_codegen/tree/feat/runtime-module-loading#setup)
 //! for the build and runtime dependency declarations.
 //!
 //! # Configure the consuming package
@@ -62,14 +67,15 @@
 //! ```ignore
 //! fluent_typed_codegen::translations!(pub mod texts);
 //!
-//! let translations: texts::Translations = texts::Locale::En.load();
+//! let manifest = texts::embed_manifest!();
+//! let translations = texts::Translations::from_manifest(texts::Locale::En, &manifest)?;
 //! let ui: &texts::Ui = translations.ui();
 //! let menu: &texts::ui::Menu = ui.menu();
 //! println!("{}", menu.msg_title());
 //! ```
 //!
 //! This snippet needs consumer-owned FTL and build output; the
-//! [runnable Rust example](https://github.com/SDA-31/fluent_typed_codegen/tree/main/examples/minimal)
+//! [runnable Rust example](https://github.com/SDA-31/fluent_typed_codegen/tree/feat/runtime-module-loading/examples/minimal)
 //! demonstrates the complete setup. There is no public module at a leaf path.
 //! Message keys in different files stay independent, including their argument types.
 //!
@@ -80,8 +86,9 @@
 //! accepts an explicit tool-owned output directory for custom build frontends.
 //! Failed generation can leave partial output; always propagate build errors.
 //!
-//! `Locale::load()` parses embedded FTL. Generated `Translations::from_modules`
-//! validates and parses caller-supplied FTL strings before
+//! Generated leaves expose checked `new(locale, bytes)`, safe `new_unchecked`,
+//! and standalone `validate`. `Translations::from_modules` validates and parses
+//! caller-supplied FTL strings before
 //! returning a snapshot. Compatible prose edits can be loaded without rebuilding;
 //! changes to the schema or language/module inventory require regeneration.
 //! These runtime methods perform no filesystem reads. File loading and replacing
@@ -90,8 +97,17 @@
 //! module keys remain paths below the locale directory, not storage URLs. The
 //! returned snapshot retains no input borrows. Read a coherent revision before
 //! parsing and replace application state only after validation succeeds. Archive
-//! I/O and pack installation are not generator features; embedded fallbacks remain.
-//! See the [external storage guide](https://github.com/SDA-31/fluent_typed_codegen#external-storage-and-translation-packs).
+//! I/O and pack installation remain application choices; there is no implicit fallback.
+//! Generated `from_manifest` constructors read files through a
+//! [`LocalizationManifest`] contract, while
+//! `texts::embed_manifest!()` explicitly includes a build-prepared raw source set.
+//! Without that macro invocation, generated APIs contain no FTL payload.
+//! The embedded macro is crate-local; `module = texts::ui::Menu` selects one leaf,
+//! and `module = texts::Ui` includes the group's descendants, in every language.
+//! Use a generated type path or a `use` alias, not a `type` alias or generic parameter.
+//! Unselected FTL is not included even in unoptimized builds without LTO or stripping.
+//! See the [complete loading recipes](https://github.com/SDA-31/fluent_typed_codegen/blob/feat/runtime-module-loading/docs/loading.md)
+//! for bytes, files, embedding, all languages and explicit module lifetimes.
 //!
 //! # Numbers, plural selection and presentation
 //!
@@ -105,10 +121,10 @@
 //! If grammar must follow visible precision, pass the same prepared Decimal to
 //! [PluralRules](https://docs.rs/icu_plurals/latest/icu_plurals/struct.PluralRules.html).
 //! Annotate the displayed text and category keyword as `(String)` in source FTL.
-//! The [runnable example](https://github.com/SDA-31/fluent_typed_codegen/tree/main/examples/minimal)
+//! The [runnable example](https://github.com/SDA-31/fluent_typed_codegen/tree/feat/runtime-module-loading/examples/minimal)
 //! uses ICU directly; no special generated numeric type, generator dependency or
 //! feature is required. Respect ICU's operand limits for arbitrary-precision input.
-//! A [compact ICU walkthrough](https://github.com/SDA-31/fluent_typed_codegen#icu-example)
+//! A [compact ICU walkthrough](https://github.com/SDA-31/fluent_typed_codegen/tree/feat/runtime-module-loading#icu-example)
 //! shows reusable formatters and a numeric input. Catalogs and formatters can be
 //! kept in application state; the application decides when to recompute strings
 //! and how to use the result.
@@ -124,18 +140,25 @@
 //! With `build`, `Extension` adds an entrypoint decorated with typed Rust syntax,
 //! while preserving the plain generated API. It can add attributes, imports or
 //! application-specific registration code. See the
-//! [extension guide](https://github.com/SDA-31/fluent_typed_codegen#framework-extensions)
+//! [extension guide](https://github.com/SDA-31/fluent_typed_codegen/tree/feat/runtime-module-loading#framework-extensions)
 //! for its syntax hooks and consumer-compilation requirements.
-//! The repository links follow `main`; this API reference describes the viewed version.
+//! Repository links follow the unreleased branch; this API reference describes the viewed version.
 #![warn(missing_docs)]
 mod macros;
+mod manifest;
 
-#[cfg(feature = "build")]
+#[cfg(test)]
+mod manifest_tests;
+
+pub use manifest::{LocalizationManifest, ManifestError};
+
 mod configuration;
 #[cfg(feature = "build")]
 mod diagnostics;
 #[cfg(feature = "build")]
 mod discovery;
+#[cfg(feature = "build")]
+mod embedding;
 #[cfg(feature = "build")]
 mod extension;
 #[cfg(feature = "build")]
@@ -146,7 +169,6 @@ mod locale;
 mod message_types;
 #[cfg(feature = "build")]
 mod metadata;
-#[cfg(feature = "build")]
 mod paths;
 #[cfg(feature = "build")]
 mod references;
@@ -163,7 +185,6 @@ mod tree;
 #[cfg(feature = "build")]
 mod upstream;
 
-#[cfg(feature = "build")]
 pub use configuration::CatalogConfig;
 #[cfg(feature = "build")]
 pub use extension::{Extension, Scope};

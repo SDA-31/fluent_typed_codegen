@@ -64,9 +64,17 @@ jobs:
           cargo generate-lockfile
           cargo generate-lockfile --manifest-path examples/minimal/Cargo.toml
       - name: Test generator and doctests
-        run: cargo test --locked
+        run: cargo test --locked --features manifest
       - name: Test macro-only API
         run: cargo test --locked --no-default-features
+      - name: Test optional runtime manifest parser
+        run: cargo test --locked --no-default-features --features manifest
+      - name: Check manifest-only dependency isolation
+        run: |
+          cargo tree --locked --no-default-features --features manifest --edges normal,build --prefix none > "$CARGO_TARGET_DIR/manifest-dependencies.txt"
+          if grep -E '^(fluent-typed|fluent-syntax|syn|quote|proc-macro2|prettyplease) v' "$CARGO_TARGET_DIR/manifest-dependencies.txt"; then
+            exit 1
+          fi
       - name: Check macro-only dependency isolation
         run: |
           cargo tree --locked --no-default-features --edges normal,build --prefix none > "$CARGO_TARGET_DIR/macro-dependencies.txt"
@@ -108,12 +116,13 @@ jobs:
           cargo generate-lockfile --manifest-path examples/minimal/Cargo.toml
       - name: Clippy
         run: |
-          cargo clippy --locked --all-targets -- -D warnings
+          cargo clippy --locked --all-targets --features manifest -- -D warnings
           cargo clippy --locked --all-targets --no-default-features -- -D warnings
+          cargo clippy --locked --all-targets --no-default-features --features manifest -- -D warnings
           cargo clippy --locked --manifest-path examples/minimal/Cargo.toml --all-targets -- -D warnings
       - name: Build documentation with and without generation
         run: |
-          cargo doc --locked --no-deps
+          cargo doc --locked --no-deps --features manifest
           cargo doc --locked --no-deps --no-default-features
       - name: Verify the distributable archive without uploading
         run: |
