@@ -1,6 +1,6 @@
 # Minimal typed localization in Rust
 
-This example targets the unreleased `feat/runtime-module-loading` branch.
+This example uses the 0.2.0 API from the repository checkout.
 
 A complete Rust application using a generated translation API. The default greeting
 and documentation are English; Spanish and Russian translations are included.
@@ -44,20 +44,19 @@ module discovery, namespaces and checked leaf/whole-language loading.
 Clone the repository and run the example from its root:
 
 ```sh
-git clone --branch feat/runtime-module-loading https://github.com/SDA-31/fluent_typed_codegen.git
+git clone --branch main https://github.com/SDA-31/fluent_typed_codegen.git
 cd fluent_typed_codegen
-git checkout b6d4f29589ce52d6f873f98ea82bd94d1b919345
 cargo run --manifest-path examples/minimal/Cargo.toml
 cargo test --manifest-path examples/minimal/Cargo.toml
 cargo clippy --manifest-path examples/minimal/Cargo.toml --all-targets -- -D warnings
 cargo tree --manifest-path examples/minimal/Cargo.toml --edges normal
 ```
 
-The checkout pins the same unreleased 0.2.0 API as the README setup, including
+The checkout provides the 0.2.0 API from the README setup, including
 typed leaf/group selection. Follow the
 [embedded recipe](../../docs/loading.md#embed-one-module) to try that variant.
 Run these commands in the clone, not in your application's directory. Installing the
-published 0.1.4 crate does not install this API. To inspect matching API reference
+older 0.1.4 crate does not install this API. To inspect matching API reference
 pages locally, run `cargo doc --open` from the clone.
 
 The executable prints the English HUD title, a greeting and a pluralized item

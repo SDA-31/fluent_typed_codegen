@@ -6,10 +6,7 @@
 [![MSRV](https://img.shields.io/crates/msrv/fluent_typed_codegen)](https://crates.io/crates/fluent_typed_codegen)
 [![License](https://img.shields.io/crates/l/fluent_typed_codegen)](LICENSE)
 
-**0.2.0 (Unreleased) on `feat/runtime-module-loading`.** Published 0.1.4 retains the
-previous embedded API. The instructions below pin a Git revision of the 0.2.0
-API, including typed embedded selection. Version 0.2.0 is not published on
-crates.io; installing `fluent_typed_codegen = "0.1.4"` will not provide it.
+[Migrate from 0.1.4](docs/migration-0.2.md) · [Changelog](CHANGELOG.md)
 
 Generate a typed Rust API from modular Fluent translation files. Write messages
 in `.ftl` files, then call them through named Rust scopes:
@@ -26,7 +23,7 @@ Language folders determine the available locales; file paths determine the Rust
 scopes. The build script checks that translations agree on their message contracts,
 and Rust checks the arguments at each call site.
 
-[Published 0.1.4 API documentation](https://docs.rs/fluent_typed_codegen/0.1.4/fluent_typed_codegen/) ·
+[API documentation](https://docs.rs/fluent_typed_codegen/) ·
 [Loading recipes for this API](docs/loading.md) ·
 [Runnable Rust example](examples/minimal/README.md) · [Changelog](CHANGELOG.md)
 
@@ -77,10 +74,10 @@ edition = "2024"
 rust-version = "1.95"
 
 [build-dependencies]
-fluent_typed_codegen = { git = "https://github.com/SDA-31/fluent_typed_codegen", rev = "b6d4f29589ce52d6f873f98ea82bd94d1b919345", default-features = false, features = ["build"] }
+fluent_typed_codegen = { version = "0.2.0", default-features = false, features = ["build"] }
 
 [dependencies]
-fluent_typed_codegen = { git = "https://github.com/SDA-31/fluent_typed_codegen", rev = "b6d4f29589ce52d6f873f98ea82bd94d1b919345", default-features = false }
+fluent_typed_codegen = { version = "0.2.0", default-features = false }
 fluent-typed = { version = "0.9.0", default-features = false, features = ["langneg"] }
 fluent-syntax = "0.12"
 
@@ -169,8 +166,8 @@ running the application. This version explicitly embeds the translation files,
 so the executable needs no external files. To load files or only one module at a
 time, replace `src/main.rs` with a [loading recipe](docs/loading.md).
 
-For local API documentation matching the pinned revision, run
-`cargo doc --open`. The docs.rs links describe the published release.
+For local API documentation matching your dependency version, run
+`cargo doc --open`.
 For localized numbers and more generated types, see
 [examples/minimal](examples/minimal/README.md).
 
@@ -280,7 +277,7 @@ origin)` accepts already obtained TOML without I/O. `config`, `file_path` and
 inspection without parsing. Runtime paths need not match build-time paths.
 
 Explicit embedding uses a build-prepared recipe; the schema-generation step stays
-in `build.rs`. The Git dependencies in Setup support typed selection. See the
+in `build.rs`. See the
 [complete recipe](docs/loading.md#embed-one-module).
 
 ```rust
@@ -304,11 +301,8 @@ binary. Static embedded bytes outlive dropped parsed catalogs. The generated
 macro is crate-local, including inside a `pub mod texts`; a library can expose
 its own function that explicitly invokes it.
 
-Migration from published 0.1.4 removes `Locale::load()` and
-`Translations::embedded()`. Use an explicit manifest or prepared bytes/pairs.
-`MODULES` loses its embedded-source field and `from_modules` now returns typed
-`LoadError` rather than `String`. Existing typed message calls and full-tree
-getters retain their shape. There is no decompressor API.
+Upgrading from 0.1.4? Follow the [migration guide](docs/migration-0.2.md)
+for before/after constructors, error handling, metadata and manual includes.
 
 ### Naming and references
 
@@ -348,7 +342,7 @@ under `OUT_DIR`. `MODULES` records `(locale, relative module path)` without tran
 
 Bevy consumers additionally package the original definition TOML and preserve
 its relative directory layout. The
-[Bevy source integration](https://github.com/SDA-31/bevy_fluent_typed/blob/feat/runtime-module-loading/docs/asset-sources.md)
+[Bevy source integration](https://github.com/SDA-31/bevy_fluent_typed/blob/main/docs/asset-sources.md)
 uses this same checked parser through a named asset source, then updates resources
 and bound text. Other applications can call `from_modules` directly.
 
@@ -450,8 +444,8 @@ implement a rendering engine.
 
 | Symptom | What to check |
 | --- | --- |
-| `Hud::new`, `from_manifest` or `embed_manifest!` is missing | Use the Git dependencies from [Setup](#setup) in **both** Cargo sections. Published 0.1.4 uses the previous API. |
-| `embed_manifest!(module = texts::presentation::Hud)` is rejected | Use the current Git revision from [Setup](#setup) in both dependency sections. Pass a generated path or `use` alias, not a string or `type` alias. |
+| `Hud::new`, `from_manifest` or `embed_manifest!` is missing | Use version 0.2.0 from [Setup](#setup) in **both** Cargo sections. Published 0.1.4 uses the previous API. |
+| `embed_manifest!(module = texts::presentation::Hud)` is rejected | Use version 0.2.0 from [Setup](#setup) in both dependency sections. Pass a generated path or `use` alias, not a string or `type` alias. |
 | `translations!` cannot find `OUT_DIR` or `translations.rs` | Add the [build.rs](#2-run-generation-from-buildrs) beside the application's Cargo.toml and enable `build` on its build dependency. Resolve any earlier generation error first. |
 | `LocalizationManifest::from_file` or `parse` is missing | Enable `manifest` on the **normal** dependency, as in the [file recipe](docs/loading.md#read-files-through-a-manifest). A build dependency's features do not enable runtime APIs. |
 | Generated code cannot resolve `fluent_typed` or `fluent_syntax` | Keep `fluent-typed` and `fluent-syntax` under those canonical dependency names in the application's `[dependencies]`. |
@@ -566,7 +560,7 @@ imports: compile a consumer of each extension's emitted API.
 build frontends. Choose a tool-owned directory beneath target/.
 
 ```sh
-git clone --branch feat/runtime-module-loading https://github.com/SDA-31/fluent_typed_codegen.git
+git clone --branch main https://github.com/SDA-31/fluent_typed_codegen.git
 cd fluent_typed_codegen
 # Replace the input path with a package configured as shown in Setup.
 cargo run --manifest-path Cargo.toml --example generate -- /path/to/consumer target/localization-example-generated
@@ -578,12 +572,13 @@ These commands work from a standalone generator checkout. Add `--locked --offlin
 after the first dependency resolution. The local lockfile and target directory
 are ignored; a consuming workspace owns its own lockfile.
 The [bundled example](examples/minimal/README.md) uses repository-local paths for
-development; external applications use the pinned Git dependencies in Setup.
+development; external applications use the registry dependencies in Setup.
 
 ## Continuous integration
 
 [CI workflow](.github/workflows/ci.yml) runs on pushes (including tags), pull
-requests and manual dispatch. It checks this repository independently:
+requests and manual dispatch. Branch pushes and PRs changing only `CHANGELOG.md`
+are ignored; tags and manual dispatch still run checks. It checks this repository independently:
 
 - Generator/manifest tests, doctests, macro-only dependency isolation, optional
   parser-only builds, opt-in embedding compilation and the generated consumer on Linux, Windows and macOS with stable Rust.

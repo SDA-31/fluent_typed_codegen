@@ -1,31 +1,48 @@
 # Changelog
 
-## 0.2.0 (Unreleased) — runtime module loading
+Notable changes are recorded here using
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html);
+before 1.0, a minor release can introduce incompatible API changes.
 
-- Generate schema and typed accessors without mandatory embedded FTL. Explicit
-  `embed_manifest!()` includes the whole set; `module = texts::ui::Menu` selects a
-  leaf and `module = texts::Ui` selects a group. Generated paths and `use` aliases
-  replace the earlier development snapshot's string selectors.
-- Keep unselected FTL out of unoptimized binaries without relying on LTO or
-  linker dead-code removal; regression tests compile with source files removed
-  and inspect executable payloads.
-- Add checked/unchecked leaf construction, standalone validation, module metadata,
-  complete all-language loading, and typed errors with locale/path context.
-- Add a shared immutable `LocalizationManifest` contract. Its std-only API keeps
-  the no-default-feature dependency graph empty; optional `manifest` enables TOML.
-- Add checked manifest constructors and integration hooks to assemble complete
-  scopes from already parsed children without reparsing.
-- **Migration:** remove generated `Translations::embedded`, `Locale::load` and
-  source text from `MODULES`; use explicit data or manifest constructors. Root
-  constructors now return `LoadError` instead of `String`. Manual output includes
-  need the `__fluent_codegen` support alias. Extension `Scope` gains logical path
-  and leaf metadata. Typed message accessors retain their signatures.
-- Embedded macros are crate-local. Upstream input copies/reparsing remain; this
-  change does not claim zero-copy loading or introduce fallback/cache policies.
+## [Unreleased]
 
-## 0.1.4 — 2026-09-22
+Planned for 0.2.0. Follow the [migration from 0.1.4](docs/migration-0.2.md)
+for dependency updates and before/after initialization examples.
 
-Documentation and examples refresh; no public API or parsing behavior changes.
+### Added
+
+- Checked leaf construction, optional unchecked construction, standalone
+  validation and typed errors with module/locale context.
+- Explicit file and embedded source contracts through `LocalizationManifest`;
+  optional `manifest` support parses TOML without importing the generator.
+- `load_all` and `load_all_unchecked` for complete sets of known languages.
+- Typed `embed_manifest!` selection for a leaf, group or complete tree, including
+  `use` aliases. Unselected FTL stays out of unoptimized binaries too.
+- Metadata and integration hooks for assembling scopes from already parsed children.
+
+### Changed
+
+- **Breaking:** `Translations::from_modules` returns generated `LoadError`
+  instead of `String`.
+- **Breaking:** manual output includes require the `__fluent_codegen` support
+  alias; extension `Scope` gains logical scope and leaf paths.
+- Generation prepares a schema without mandatory FTL payloads. Applications
+  explicitly choose storage, validation policy and module lifetimes.
+
+### Removed
+
+- **Breaking:** generated `Locale::load` and `Translations::embedded`;
+  use explicit byte or manifest constructors.
+- **Breaking:** embedded source text in `MODULES`; entries contain only locale
+  and logical module path.
+
+Typed message accessor signatures are unchanged. Upstream copies/reparsing remain;
+this release does not introduce automatic fallback or caching.
+
+## [0.1.4] - 2026-09-22
+
+### Changed
 
 - Clarify setup, explicit build-time generation and the relationship to fluent-typed.
 - Demonstrate application-owned ICU formatting and plural-category selection.
@@ -34,4 +51,8 @@ Documentation and examples refresh; no public API or parsing behavior changes.
 - Add coverage for owned virtual sources and move example regression tests into
   `examples/minimal/tests/`, keeping the runnable example focused on API usage.
 
+This documentation release changes no public API or parsing behavior.
 Earlier releases predate this changelog; their source is retained in Git tags.
+
+[Unreleased]: https://github.com/SDA-31/fluent_typed_codegen/compare/v0.1.4...HEAD
+[0.1.4]: https://github.com/SDA-31/fluent_typed_codegen/compare/v0.1.3...v0.1.4
