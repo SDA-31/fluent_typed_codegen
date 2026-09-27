@@ -3,7 +3,12 @@
 ## 0.2.0 (Unreleased) — runtime module loading
 
 - Generate schema and typed accessors without mandatory embedded FTL. Explicit
-  `embed_manifest!()` includes the whole set; `module = "ui/menu.ftl"` selects a leaf.
+  `embed_manifest!()` includes the whole set; `module = texts::ui::Menu` selects a
+  leaf and `module = texts::Ui` selects a group. Generated paths and `use` aliases
+  replace the earlier development snapshot's string selectors.
+- Keep unselected FTL out of unoptimized binaries without relying on LTO or
+  linker dead-code removal; regression tests compile with source files removed
+  and inspect executable payloads.
 - Add checked/unchecked leaf construction, standalone validation, module metadata,
   complete all-language loading, and typed errors with locale/path context.
 - Add a shared immutable `LocalizationManifest` contract. Its std-only API keeps

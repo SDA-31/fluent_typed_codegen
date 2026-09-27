@@ -149,11 +149,26 @@ Embedding needs no `manifest` feature and performs no runtime filesystem reads.
 The macro uses the manifest already processed by `build.rs`; it takes no runtime
 path or `LocalizationManifest` value.
 
+Typed selection requires the current **0.2.0 development checkout**, which is
+not yet published or available at the older pinned Git revision in Setup.
+For this recipe, replace both generator dependency entries with your local path
+(keep the other dependencies and metadata):
+
+```toml
+[dependencies]
+fluent_typed_codegen = { path = "/absolute/path/to/fluent_typed_codegen", default-features = false }
+
+[build-dependencies]
+fluent_typed_codegen = { path = "/absolute/path/to/fluent_typed_codegen", default-features = false, features = ["build"] }
+```
+
+Then use this `src/main.rs`:
+
 ```rust
 fluent_typed_codegen::translations!(pub mod texts);
 
 fn main() -> Result<(), texts::LoadError> {
-    let manifest = texts::embed_manifest!(module = "presentation/hud.ftl");
+    let manifest = texts::embed_manifest!(module = texts::presentation::Hud);
     let hud = texts::presentation::Hud::from_manifest(texts::Locale::Es, &manifest)?;
     println!("{}", hud.msg_greeting("Ada"));
     Ok(())
@@ -162,7 +177,19 @@ fn main() -> Result<(), texts::LoadError> {
 
 The selector includes that leaf's raw bytes in **all compiled languages**. Only
 Spanish is parsed here. Use `texts::embed_manifest!()` to include every leaf and
-language. Without a macro invocation, the generated schema embeds no FTL payload.
+language. A group such as `module = texts::Presentation` includes its descendant
+leaves; `module = texts::Translations` is the explicit whole-tree form.
+
+Imports work too: after `use texts::presentation::Hud as HudTexts`, select
+`module = HudTexts`. Pass a generated type path or a `use` alias, not an arbitrary
+`type` alias or generic parameter: selection needs the associated generated macro
+as well as the type.
+
+Without a macro invocation, the generated schema embeds no FTL payload, even in
+debug builds without optimization, LTO or linker dead-code removal. Selecting a
+leaf expands includes only for that leaf; siblings need not exist when compiling
+the prepared schema. The earlier build-script generation still needs the schema's
+source files.
 
 Macro expansion happens during compilation, even inside `if false`. Dropping
 `hud` releases its parsed data when no clones remain; embedded static bytes stay

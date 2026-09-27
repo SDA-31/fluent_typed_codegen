@@ -279,21 +279,30 @@ origin)` accepts already obtained TOML without I/O. `config`, `file_path` and
 inspection without parsing. Runtime paths need not match build-time paths.
 
 Explicit embedding uses a build-prepared recipe; the schema-generation step stays
-in `build.rs`:
+in `build.rs`. Typed selection below requires the current 0.2.0 checkout; the
+pinned Git snapshot in Setup predates it. See the
+[local setup and complete recipe](docs/loading.md#embed-one-module).
 
 ```rust
 let complete = texts::embed_manifest!();
-let hud_only = texts::embed_manifest!(module = "presentation/hud.ftl");
+let hud_only = texts::embed_manifest!(module = texts::presentation::Hud);
+let presentation = texts::embed_manifest!(module = texts::Presentation);
 let hud = texts::presentation::Hud::from_manifest(locale, &hud_only)?;
 ```
 
-No expanded call means no FTL payload is included by this path. A macro in
+Use the generated type's path, or a `use` import, including `use ... as ...`.
+The selector resolves both that type and its generated embedding macro; an
+arbitrary `type` alias or generic type parameter cannot select an embedding recipe.
+
+No expanded call means no FTL payload is included by this path, including in
+unoptimized debug builds; this does not depend on LTO or linker stripping. A macro in
 `if false` still expands. The no-argument form includes **all raw modules and all
-languages**; the `module` selector includes just that logical leaf in every
-language. Runtime construction decides what gets parsed, not what enters the
+languages**; a leaf selector includes that leaf in every language, and a group
+includes its descendant leaves. `module = texts::Translations` selects the whole
+tree. Runtime construction decides what gets parsed, not what enters the
 binary. Static embedded bytes outlive dropped parsed catalogs. The generated
 macro is crate-local, including inside a `pub mod texts`; a library can expose
-its own function that explicitly invokes it. Group selectors are not provided.
+its own function that explicitly invokes it.
 
 Migration from published 0.1.4 removes `Locale::load()` and
 `Translations::embedded()`. Use an explicit manifest or prepared bytes/pairs.

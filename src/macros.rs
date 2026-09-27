@@ -41,19 +41,47 @@ macro_rules! translations {
 /// Define a crate-local embedded-manifest macro from deferred include expressions.
 #[doc(hidden)]
 #[macro_export]
+// Rustfmt repeatedly indents the nested dollar-token matcher on every pass.
+#[rustfmt::skip]
 macro_rules! __define_embed_manifest {
-	($recipe:expr; $( $module:tt => $module_recipe:expr ),* $(,)?) => {
+	($recipe:expr; $dollar:tt) => {
 		#[allow(unused_macros)]
 		macro_rules! __embed_manifest {
 			() => {
 				$crate::LocalizationManifest::__embedded($recipe)
 			};
-			$((module = $module) => { $crate::LocalizationManifest::__embedded($module_recipe) };)*
+			(module = $dollar scope:path $dollar(,)?) => {{
+				// Resolve the type as well as its generated companion macro.
+				let _: ::std::option::Option<$dollar scope> = ::std::option::Option::None;
+				$dollar scope!(@manifest)
+			}};
 		}
 
 		/// Explicitly include this package's build-time FTL in the calling crate.
+		/// With no arguments, includes all modules in all discovered languages.
+		/// `module = path::ToScope` selects a generated leaf, group or root type;
+		/// `use` aliases work too. Only the selected scope's includes expand,
+		/// independently of compiler optimization or linker dead-code removal.
 		/// Available only within the crate declaring `translations!`.
 		#[allow(unused_imports)]
 		pub(crate) use __embed_manifest as embed_manifest;
+	};
+}
+
+/// Associate a deferred recipe with a generated type in Rust's macro namespace.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __define_embed_scope {
+	($scope:ident, $internal:ident, $recipe:expr) => {
+		#[allow(unused_macros)]
+		macro_rules! $internal {
+			(@manifest) => {
+				$crate::LocalizationManifest::__embedded($recipe)
+			};
+		}
+
+		#[doc(hidden)]
+		#[allow(unused_imports)]
+		pub(crate) use $internal as $scope;
 	};
 }

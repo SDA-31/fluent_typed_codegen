@@ -102,7 +102,10 @@
 //! [`LocalizationManifest`] contract, while
 //! `texts::embed_manifest!()` explicitly includes a build-prepared raw source set.
 //! Without that macro invocation, generated APIs contain no FTL payload.
-//! The embedded macro is crate-local; `module = "ui/menu.ftl"` selects one leaf.
+//! The embedded macro is crate-local; `module = texts::ui::Menu` selects one leaf,
+//! and `module = texts::Ui` includes the group's descendants, in every language.
+//! Use a generated type path or a `use` alias, not a `type` alias or generic parameter.
+//! Unselected FTL is not included even in unoptimized builds without LTO or stripping.
 //! See the [complete loading recipes](https://github.com/SDA-31/fluent_typed_codegen/blob/feat/runtime-module-loading/docs/loading.md)
 //! for bytes, files, embedding, all languages and explicit module lifetimes.
 //!

@@ -18,7 +18,7 @@ pub(super) fn render(
 		.map(|extension| extension.root_imports())
 		.unwrap_or_default();
 	let locale = locale::render(sources)?;
-	let embedded = crate::embedding::render(sources)?;
+	let embedded = crate::embedding::Recipes::new(sources)?;
 	let mut schemas = BTreeMap::new();
 
 	for module in sources
@@ -33,7 +33,7 @@ pub(super) fn render(
 		);
 	}
 
-	let tree = render_node(root, true, message_types, &schemas, extension);
+	let tree = render_node(root, true, message_types, &schemas, &embedded, extension);
 	let errors = syn::parse_file(include_str!("../templates/error.rs"))
 		.map_err(|error| format!("error template: {error}"))?;
 	let catalog = syn::parse_file(include_str!("../templates/catalog.rs"))
@@ -66,7 +66,6 @@ pub(super) fn render(
 		#[allow(unused_imports)]
 		pub use __fluent_codegen::{LocalizationManifest, ManifestError};
 
-		#embedded
 		#locale
 		#errors
 		#tree
@@ -80,6 +79,7 @@ fn render_node(
 	root: bool,
 	message_types: &MessageTypes,
 	schemas: &BTreeMap<String, schema::Schema>,
+	embedded: &crate::embedding::Recipes<'_>,
 	extension: Option<&dyn Extension>,
 ) -> TokenStream {
 	let ty = identifier(&node.ty);
@@ -282,8 +282,10 @@ fn render_node(
 		None => syn::Item::Struct(declaration),
 	};
 
+	let embedding = embedded.scope(node);
 	let declarations = quote! {
 		#declaration
+		#embedding
 
 		impl #ty {
 			#(#accessors)*
@@ -345,7 +347,7 @@ fn render_node(
 	let children = node
 		.children
 		.values()
-		.map(|child| render_node(child, false, message_types, schemas, extension));
+		.map(|child| render_node(child, false, message_types, schemas, embedded, extension));
 
 	if root {
 		return quote! {
@@ -364,7 +366,7 @@ fn render_node(
 
 		#[doc = #description]
 		pub mod #name {
-			use super::{fluent_typed, Locale, LoadError, LocalizationManifest, __validation};
+			use super::{fluent_typed, Locale, LoadError, LocalizationManifest, __validation, __fluent_codegen};
 			#(#imports)*
 			#(#children)*
 		}
