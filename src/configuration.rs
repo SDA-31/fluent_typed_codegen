@@ -7,9 +7,11 @@ use toml_edit::{DocumentMut, Table};
 
 /// Contents of `localization.toml`, separate from Cargo's asset-path settings.
 ///
-/// Languages are discovered as directories, not enumerated in this configuration.
-/// Changing these settings requires regeneration. Compatible text edits can be
-/// loaded externally without rebuilding; embedded translations require a rebuild.
+/// At build time, languages are discovered as directories, not enumerated here.
+/// Changes to compiled languages, modules or typed message contracts require
+/// regeneration. Runtime manifests may point to a different translation directory
+/// with the same contracts. Compatible text edits can be loaded from files without
+/// rebuilding; changing explicitly embedded translations requires a rebuild.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CatalogConfig {
 	/// Resolved `translations-directory`, relative to the configuration file.

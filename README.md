@@ -7,8 +7,8 @@
 [![License](https://img.shields.io/crates/l/fluent_typed_codegen)](LICENSE)
 
 **Unreleased API on `feat/runtime-module-loading`.** Published 0.1.4 retains the
-previous embedded API. The examples below target this branch; no new release
-is implied.
+previous embedded API. The instructions below pin a tested Git revision of the
+new API. Installing `fluent_typed_codegen = "0.1.4"` will not provide it.
 
 Generate a typed Rust API from modular Fluent translation files. Write messages
 in `.ftl` files, then call them through named Rust scopes:
@@ -25,40 +25,61 @@ Language folders determine the available locales; file paths determine the Rust
 scopes. The build script checks that translations agree on their message contracts,
 and Rust checks the arguments at each call site.
 
-[API documentation](https://docs.rs/fluent_typed_codegen/latest/fluent_typed_codegen/) ·
+[Published 0.1.4 API documentation](https://docs.rs/fluent_typed_codegen/0.1.4/fluent_typed_codegen/) ·
+[Loading recipes for this API](docs/loading.md) ·
 [Runnable Rust example](examples/minimal/README.md) · [Changelog](CHANGELOG.md)
 
 ## Contents
 
-- [Setup](#setup)
-- [Configuration](#configuration)
-- [Typed translation scopes](#typed-translation-scopes)
-- [External storage and translation packs](#external-storage-and-translation-packs)
-- [Numbers, plurals and RTL](#numbers-plurals-and-rtl)
-- [Features and dependency boundaries](#features-and-dependency-boundaries)
-- [Outputs and indexing](#outputs-and-indexing)
-- [Framework extensions](#framework-extensions)
-- [Custom build tooling](#custom-build-tooling)
-- [Continuous integration](#continuous-integration)
+- [Create your first application](#setup)
+- [Configure paths and languages](#configuration)
+- [Call generated messages](#typed-translation-scopes)
+- [Load files, bytes or individual modules](docs/loading.md)
+- [Use an archive or translation pack](#external-storage-and-translation-packs)
+- [Format numbers and plurals](#numbers-plurals-and-rtl)
+- [Fix common setup and loading errors](#troubleshooting)
+- [Choose dependency features](#features-and-dependency-boundaries)
+- [Find generated files and IDE output](#outputs-and-indexing)
+- [Write a framework integration](#framework-extensions)
+- [Use custom build tooling](#custom-build-tooling)
+- [Run repository checks](#continuous-integration)
 - [License](#license)
 
 ## Setup
+
+Start here for a small application. This path embeds your translations explicitly
+and loads one complete language, so running the executable needs no asset setup.
+Once it works, the [loading recipes](docs/loading.md) show how to switch to files,
+your own buffers or modules loaded on demand.
 
 The declared minimum Rust version is 1.95.
 Future releases may raise the compiler requirement; release notes will identify
 the last version supporting the previous minimum.
 
-### 1. Add the dependencies
+### 1. Create an application
 
-In your application's `Cargo.toml`, enable generation in the build dependency
-and the lightweight inclusion macro in the normal dependency:
+With Rust 1.95 or newer installed, run:
+
+```sh
+cargo new localization-demo --edition 2024
+cd localization-demo
+```
+
+Replace its `Cargo.toml` with this complete file. The build dependency generates
+the API; the normal dependency includes it and supplies the manifest type.
 
 ```toml
+[package]
+name = "localization-demo"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+
 [build-dependencies]
-fluent_typed_codegen = { git = "https://github.com/SDA-31/fluent_typed_codegen", branch = "feat/runtime-module-loading", default-features = false, features = ["build"] }
+fluent_typed_codegen = { git = "https://github.com/SDA-31/fluent_typed_codegen", rev = "5761d2843d80c5c4bbd6328d3037de61df398fdd", default-features = false, features = ["build"] }
 
 [dependencies]
-fluent_typed_codegen = { git = "https://github.com/SDA-31/fluent_typed_codegen", branch = "feat/runtime-module-loading", default-features = false }
+fluent_typed_codegen = { git = "https://github.com/SDA-31/fluent_typed_codegen", rev = "5761d2843d80c5c4bbd6328d3037de61df398fdd", default-features = false }
 fluent-typed = { version = "0.9.0", default-features = false, features = ["langneg"] }
 fluent-syntax = "0.12"
 
@@ -83,15 +104,7 @@ exit code on errors; return it from `main` so Cargo stops the build.
 
 ### 3. Add the catalogs
 
-Create `assets/localizations/localization.toml`:
-
-```toml
-translations-directory = "translations"
-source-language = "en"
-default-language = "en"
-```
-
-Create matching files for each language:
+Create these directories and files inside `localization-demo`:
 
 ```text
 assets/localizations/
@@ -101,7 +114,15 @@ assets/localizations/
     └── es/presentation/hud.ftl
 ```
 
-`en/presentation/hud.ftl`:
+`assets/localizations/localization.toml`:
+
+```toml
+translations-directory = "translations"
+source-language = "en"
+default-language = "en"
+```
+
+`assets/localizations/translations/en/presentation/hud.ftl`:
 
 ```ftl
 title = Dashboard
@@ -109,7 +130,7 @@ title = Dashboard
 greeting = Hello, { $name }!
 ```
 
-`es/presentation/hud.ftl`:
+`assets/localizations/translations/es/presentation/hud.ftl`:
 
 ```ftl
 title = Panel
@@ -134,10 +155,23 @@ fn main() -> Result<(), texts::LoadError> {
 }
 ```
 
-Run `cargo run` to print `Hello, Ada!`. Load `texts::Locale::Es` to use Spanish.
+Run from the application directory:
+
+```sh
+cargo run
+```
+
+It prints `Hello, Ada!` (Fluent also adds invisible isolation marks around the
+argument). Load `texts::Locale::Es` to use Spanish.
 `cargo check` also runs generation, so rust-analyzer can index the API without
-running the application. For a larger working example with checked external
-loading and localized numbers, see [examples/minimal](examples/minimal/README.md).
+running the application. This version explicitly embeds the translation files,
+so the executable needs no external files. To load files or only one module at a
+time, replace `src/main.rs` with a [loading recipe](docs/loading.md).
+
+For local API documentation matching the pinned revision, run
+`cargo doc --open`. The docs.rs links describe the published release.
+For localized numbers and more generated types, see
+[examples/minimal](examples/minimal/README.md).
 
 ## Configuration
 
@@ -161,8 +195,7 @@ The application selects its initial locale. `default-language` records that poli
 Unknown fields, unsafe paths, symlinked source trees, missing languages/modules,
 duplicate keys and incompatible contracts fail generation. Module diagnostics
 list missing and extra paths; translator files are never repaired automatically.
-Use [`from_cargo`](https://docs.rs/fluent_typed_codegen/latest/fluent_typed_codegen/fn.from_cargo.html)
-for custom `Result`-based build-error handling.
+Use `fluent_typed_codegen::from_cargo()` for custom `Result`-based build-error handling.
 
 ## Typed translation scopes
 
@@ -193,7 +226,8 @@ Clones share immutable catalogs through `Arc`.
 
 ### Loading and replacing translations
 
-The generated API accepts readable bytes without prescribing storage:
+The generated API accepts readable bytes without prescribing storage. These are
+the available operations; [complete programs](docs/loading.md) show the inputs:
 
 ```rust
 let hud = texts::presentation::Hud::new(locale, &bytes)?;
@@ -233,6 +267,9 @@ let manifest = fluent_typed_codegen::LocalizationManifest::from_file(runtime_pat
 let hud = texts::presentation::Hud::from_manifest(locale, &manifest)?;
 let all = texts::Translations::from_manifest(locale, &manifest)?;
 ```
+
+The [file-loading recipe](docs/loading.md#read-files-through-a-manifest) includes
+the exact dependency change and a complete `main`.
 
 `from_file` reads only TOML. The leaf constructor reads only its own module for
 one language; the root constructor reads the complete language. `parse(source,
@@ -302,7 +339,7 @@ under `OUT_DIR`. `MODULES` records `(locale, relative module path)` without tran
 
 Bevy consumers additionally package the original definition TOML and preserve
 its relative directory layout. The
-[Bevy source integration](https://github.com/SDA-31/bevy_fluent_typed/blob/main/docs/asset-sources.md)
+[Bevy source integration](https://github.com/SDA-31/bevy_fluent_typed/blob/feat/runtime-module-loading/docs/asset-sources.md)
 uses this same checked parser through a named asset source, then updates resources
 and bound text. Other applications can call `from_modules` directly.
 
@@ -400,6 +437,25 @@ Fluent handles interpolation isolation, while the application's text renderer
 owns bidi layout, shaping and fonts. This generator does not reverse strings or
 implement a rendering engine.
 
+## Troubleshooting
+
+| Symptom | What to check |
+| --- | --- |
+| `Hud::new`, `from_manifest` or `embed_manifest!` is missing | Use the Git dependencies from [Setup](#setup) in **both** Cargo sections. Published 0.1.4 uses the previous API. |
+| `translations!` cannot find `OUT_DIR` or `translations.rs` | Add the [build.rs](#2-run-generation-from-buildrs) beside the application's Cargo.toml and enable `build` on its build dependency. Resolve any earlier generation error first. |
+| `LocalizationManifest::from_file` or `parse` is missing | Enable `manifest` on the **normal** dependency, as in the [file recipe](docs/loading.md#read-files-through-a-manifest). A build dependency's features do not enable runtime APIs. |
+| Generated code cannot resolve `fluent_typed` or `fluent_syntax` | Keep `fluent-typed` and `fluent-syntax` under those canonical dependency names in the application's `[dependencies]`. |
+| Runtime file loading reports a missing file | Run the recipe from the application directory. In a packaged application, pass the installed TOML path; retain its relative translation layout. Cargo's `asset-root` does not set the runtime working directory. |
+| Loading reports missing, duplicate or unexpected modules | Pass each logical path once, without a locale prefix. `from_modules` needs a complete language; use `Hud::new` for just one leaf. |
+| `load_all` reports missing languages | Supply every compiled locale. To keep only one language, use `from_modules` or `from_manifest`. |
+| `Locale::default()` does not match `default-language` | `Locale::default()` is the source language. Choose the startup locale explicitly; `DEFAULT_LANGUAGE` is emitted metadata. |
+| An accessor fails after unchecked loading | Use the checked constructor to diagnose the mismatch. Skipping contract checks does not make incompatible messages valid. |
+
+Changes to language folders, module paths or typed message contracts require a
+rebuild. Compatible edits to external FTL can be loaded again without rebuilding.
+There is no automatic watcher, fallback or cross-file term import in this crate.
+Your application decides when to replace or release each loaded module.
+
 ## Features and dependency boundaries
 
 | Feature selection | API and dependencies |
@@ -452,7 +508,7 @@ additional rebuild after an edit; subsequent unchanged builds reuse the output.
 ## Framework extensions
 
 Implement
-[`Extension`](https://docs.rs/fluent_typed_codegen/latest/fluent_typed_codegen/trait.Extension.html)
+[`Extension`](src/extension.rs)
 to generate an additional entrypoint with framework traits, attributes or
 registration code. The plain tree is always generated unchanged.
 
@@ -512,7 +568,7 @@ These commands work from a standalone generator checkout. Add `--locked --offlin
 after the first dependency resolution. The local lockfile and target directory
 are ignored; a consuming workspace owns its own lockfile.
 The [bundled example](examples/minimal/README.md) uses repository-local paths for
-development; external applications use the unreleased branch dependencies in Setup.
+development; external applications use the pinned Git dependencies in Setup.
 
 ## Continuous integration
 

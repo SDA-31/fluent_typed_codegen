@@ -13,7 +13,9 @@ separately in [tests/unit/catalog.rs](tests/unit/catalog.rs).
 
 The dependency is deliberately renamed to `l10n` in both Cargo sections.
 These paths are internal to this repository, not external installation paths;
-for your application, use the [branch dependency setup](../../README.md#setup).
+for your application, use the [complete application setup](../../README.md#setup).
+For file loading or loading one module on demand, use the separate
+[loading recipes](../../docs/loading.md); each provides a complete `main.rs`.
 
 ```toml
 [dependencies]
@@ -44,11 +46,17 @@ Clone the repository and run the example from its root:
 ```sh
 git clone --branch feat/runtime-module-loading https://github.com/SDA-31/fluent_typed_codegen.git
 cd fluent_typed_codegen
+git checkout 5761d2843d80c5c4bbd6328d3037de61df398fdd
 cargo run --manifest-path examples/minimal/Cargo.toml
 cargo test --manifest-path examples/minimal/Cargo.toml
 cargo clippy --manifest-path examples/minimal/Cargo.toml --all-targets -- -D warnings
 cargo tree --manifest-path examples/minimal/Cargo.toml --edges normal
 ```
+
+The checkout pins the same tested, unreleased API as the README setup. Run these
+commands in the clone, not in your application's directory. Installing the
+published 0.1.4 crate does not install this API. To inspect matching API reference
+pages locally, run `cargo doc --open` from the clone.
 
 The executable prints the English HUD title, a greeting and a pluralized item
 count in every language. The application uses
