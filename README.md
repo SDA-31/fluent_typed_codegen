@@ -7,8 +7,9 @@
 [![License](https://img.shields.io/crates/l/fluent_typed_codegen)](LICENSE)
 
 **0.2.0 (Unreleased) on `feat/runtime-module-loading`.** Published 0.1.4 retains the
-previous embedded API. The instructions below pin a tested Git revision of the
-new API; that snapshot still has its previous package version. Installing `fluent_typed_codegen = "0.1.4"` will not provide it.
+previous embedded API. The instructions below pin a Git revision of the 0.2.0
+API, including typed embedded selection. Version 0.2.0 is not published on
+crates.io; installing `fluent_typed_codegen = "0.1.4"` will not provide it.
 
 Generate a typed Rust API from modular Fluent translation files. Write messages
 in `.ftl` files, then call them through named Rust scopes:
@@ -76,10 +77,10 @@ edition = "2024"
 rust-version = "1.95"
 
 [build-dependencies]
-fluent_typed_codegen = { git = "https://github.com/SDA-31/fluent_typed_codegen", rev = "5761d2843d80c5c4bbd6328d3037de61df398fdd", default-features = false, features = ["build"] }
+fluent_typed_codegen = { git = "https://github.com/SDA-31/fluent_typed_codegen", rev = "b6d4f29589ce52d6f873f98ea82bd94d1b919345", default-features = false, features = ["build"] }
 
 [dependencies]
-fluent_typed_codegen = { git = "https://github.com/SDA-31/fluent_typed_codegen", rev = "5761d2843d80c5c4bbd6328d3037de61df398fdd", default-features = false }
+fluent_typed_codegen = { git = "https://github.com/SDA-31/fluent_typed_codegen", rev = "b6d4f29589ce52d6f873f98ea82bd94d1b919345", default-features = false }
 fluent-typed = { version = "0.9.0", default-features = false, features = ["langneg"] }
 fluent-syntax = "0.12"
 
@@ -279,9 +280,8 @@ origin)` accepts already obtained TOML without I/O. `config`, `file_path` and
 inspection without parsing. Runtime paths need not match build-time paths.
 
 Explicit embedding uses a build-prepared recipe; the schema-generation step stays
-in `build.rs`. Typed selection below requires the current 0.2.0 checkout; the
-pinned Git snapshot in Setup predates it. See the
-[local setup and complete recipe](docs/loading.md#embed-one-module).
+in `build.rs`. The Git dependencies in Setup support typed selection. See the
+[complete recipe](docs/loading.md#embed-one-module).
 
 ```rust
 let complete = texts::embed_manifest!();
@@ -451,7 +451,7 @@ implement a rendering engine.
 | Symptom | What to check |
 | --- | --- |
 | `Hud::new`, `from_manifest` or `embed_manifest!` is missing | Use the Git dependencies from [Setup](#setup) in **both** Cargo sections. Published 0.1.4 uses the previous API. |
-| `embed_manifest!(module = texts::presentation::Hud)` is rejected | Typed selection requires the [current local 0.2.0 setup](docs/loading.md#embed-one-module); the pinned Git snapshot predates it. Use a generated path or `use` alias, not a string or `type` alias. |
+| `embed_manifest!(module = texts::presentation::Hud)` is rejected | Use the current Git revision from [Setup](#setup) in both dependency sections. Pass a generated path or `use` alias, not a string or `type` alias. |
 | `translations!` cannot find `OUT_DIR` or `translations.rs` | Add the [build.rs](#2-run-generation-from-buildrs) beside the application's Cargo.toml and enable `build` on its build dependency. Resolve any earlier generation error first. |
 | `LocalizationManifest::from_file` or `parse` is missing | Enable `manifest` on the **normal** dependency, as in the [file recipe](docs/loading.md#read-files-through-a-manifest). A build dependency's features do not enable runtime APIs. |
 | Generated code cannot resolve `fluent_typed` or `fluent_syntax` | Keep `fluent-typed` and `fluent-syntax` under those canonical dependency names in the application's `[dependencies]`. |

@@ -25,7 +25,7 @@ accessor never opens a file or loads another module.
 First replace only the `fluent_typed_codegen` entry under `[dependencies]` with:
 
 ```toml
-fluent_typed_codegen = { git = "https://github.com/SDA-31/fluent_typed_codegen", rev = "5761d2843d80c5c4bbd6328d3037de61df398fdd", default-features = false, features = ["manifest"] }
+fluent_typed_codegen = { git = "https://github.com/SDA-31/fluent_typed_codegen", rev = "b6d4f29589ce52d6f873f98ea82bd94d1b919345", default-features = false, features = ["manifest"] }
 ```
 
 Keep the `[build-dependencies]` entry unchanged. The `manifest` feature enables
@@ -149,20 +149,8 @@ Embedding needs no `manifest` feature and performs no runtime filesystem reads.
 The macro uses the manifest already processed by `build.rs`; it takes no runtime
 path or `LocalizationManifest` value.
 
-Typed selection requires the current **0.2.0 development checkout**, which is
-not yet published or available at the older pinned Git revision in Setup.
-For this recipe, replace both generator dependency entries with your local path
-(keep the other dependencies and metadata):
-
-```toml
-[dependencies]
-fluent_typed_codegen = { path = "/absolute/path/to/fluent_typed_codegen", default-features = false }
-
-[build-dependencies]
-fluent_typed_codegen = { path = "/absolute/path/to/fluent_typed_codegen", default-features = false, features = ["build"] }
-```
-
-Then use this `src/main.rs`:
+Keep the Git dependencies from [Setup](../README.md#setup); that revision
+supports typed embedded selection. Replace `src/main.rs` with:
 
 ```rust
 fluent_typed_codegen::translations!(pub mod texts);

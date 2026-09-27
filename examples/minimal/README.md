@@ -46,18 +46,16 @@ Clone the repository and run the example from its root:
 ```sh
 git clone --branch feat/runtime-module-loading https://github.com/SDA-31/fluent_typed_codegen.git
 cd fluent_typed_codegen
-git checkout 5761d2843d80c5c4bbd6328d3037de61df398fdd
+git checkout b6d4f29589ce52d6f873f98ea82bd94d1b919345
 cargo run --manifest-path examples/minimal/Cargo.toml
 cargo test --manifest-path examples/minimal/Cargo.toml
 cargo clippy --manifest-path examples/minimal/Cargo.toml --all-targets -- -D warnings
 cargo tree --manifest-path examples/minimal/Cargo.toml --edges normal
 ```
 
-The checkout pins the same tested, unreleased API as the README setup. It
-predates 0.2.0's typed embedded selectors. To try typed leaf/group selection,
-keep your current local checkout and follow the
-[embedded recipe](../../docs/loading.md#embed-one-module); do not switch it to
-the older revision above. The example's no-argument embedding works in both.
+The checkout pins the same unreleased 0.2.0 API as the README setup, including
+typed leaf/group selection. Follow the
+[embedded recipe](../../docs/loading.md#embed-one-module) to try that variant.
 Run these commands in the clone, not in your application's directory. Installing the
 published 0.1.4 crate does not install this API. To inspect matching API reference
 pages locally, run `cargo doc --open` from the clone.
