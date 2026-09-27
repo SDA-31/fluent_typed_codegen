@@ -1,5 +1,7 @@
 # Minimal typed localization in Rust
 
+This example targets the unreleased `feat/runtime-module-loading` branch.
+
 A complete Rust application using a generated translation API. The default greeting
 and documentation are English; Spanish and Russian translations are included.
 Catalogs live under `assets/localizations/translations/{en,es,ru}/` with matching
@@ -11,7 +13,7 @@ separately in [tests/unit/catalog.rs](tests/unit/catalog.rs).
 
 The dependency is deliberately renamed to `l10n` in both Cargo sections.
 These paths are internal to this repository, not external installation paths;
-for your application, use the [registry dependency setup](../../README.md#setup).
+for your application, use the [branch dependency setup](../../README.md#setup).
 
 ```toml
 [dependencies]
@@ -27,18 +29,20 @@ l10n = { package = "fluent_typed_codegen", path = "../..", default-features = fa
 ```
 
 The build script returns `l10n::build()`. Application code declares
-`l10n::translations!(pub mod texts);` and borrows named translation scopes.
+`l10n::translations!(pub mod texts);`, explicitly invokes `texts::embed_manifest!()`,
+and constructs a checked language with `Translations::from_manifest`. It then
+borrows named translation scopes.
 There is no handwritten OUT_DIR path in the consumer. The macro-only normal
 dependency has no dependencies of its own; the build instance enables generation.
 The two Fluent runtime dependencies retain their standard names.
 Typed message accessors and Fluent resolution come from
 [fluent-typed](https://github.com/human-solutions/fluent-typed); this crate adds
-module discovery, namespaces and checked whole-language loading.
+module discovery, namespaces and checked leaf/whole-language loading.
 
 Clone the repository and run the example from its root:
 
 ```sh
-git clone https://github.com/SDA-31/fluent_typed_codegen.git
+git clone --branch feat/runtime-module-loading https://github.com/SDA-31/fluent_typed_codegen.git
 cd fluent_typed_codegen
 cargo run --manifest-path examples/minimal/Cargo.toml
 cargo test --manifest-path examples/minimal/Cargo.toml
@@ -77,7 +81,8 @@ change. The application decides when to do this and how to use the result.
 Tests cover typed parameters, named nested scopes, a Rust-keyword leaf,
 structured results named `presentation::HudPrompt` (without a public `hud`
 module), inferred results, renamed macro imports, restricted visibility,
-forwarded attributes and strict external loading.
+forwarded attributes, checked/unchecked leaf loading, strict inventories, all-language
+construction, shared ready-leaf assembly and strict external loading.
 No source files are modified by running the example.
 The test module is loaded only by `cargo test`; it shares the application's small
 plural-category helper without exposing a new public example API.

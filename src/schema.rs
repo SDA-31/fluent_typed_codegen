@@ -143,6 +143,10 @@ pub fn validate(candidate: &str, expected: &str) -> Result<(), String> {
 	let candidate = schema(candidate)?;
 	let expected = schema(expected)?;
 
+	compare(&candidate, &expected)
+}
+
+fn compare(candidate: &Schema, expected: &Schema) -> Result<(), String> {
 	if candidate == expected {
 		return Ok(());
 	}
@@ -158,4 +162,29 @@ pub fn validate(candidate: &str, expected: &str) -> Result<(), String> {
 	Err(format!(
 		"Fluent keys/references changed; rebuild required: {changed:?}"
 	))
+}
+
+/// Check a candidate against a build-prepared key/reference fingerprint.
+///
+/// This form never needs the source translation's prose at runtime.
+///
+/// # Errors
+/// Rejects invalid syntax, duplicate keys or changed keys/references.
+// This function is copied into generated runtime code, rather than called by the host.
+#[allow(dead_code)]
+pub fn validate_schema(candidate: &str, expected: &[(&str, &[&str])]) -> Result<(), String> {
+	let candidate = schema(candidate)?;
+	let expected: Schema = expected
+		.iter()
+		.map(|(key, references)| {
+			(
+				(*key).to_owned(),
+				references
+					.iter()
+					.map(|reference| (*reference).to_owned())
+					.collect(),
+			)
+		})
+		.collect();
+	compare(&candidate, &expected)
 }

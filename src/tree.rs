@@ -27,9 +27,16 @@ impl Node {
 			for (depth, part) in stem.split('/').enumerate() {
 				let (name, ty) = names(part)?;
 
-				if ty == "Locale"
-					|| matches!(name.as_str(), "fluent_typed" | "fluent_syntax" | "std")
-				{
+				if matches!(
+					ty.as_str(),
+					"Locale" | "LoadError" | "LocalizationManifest" | "ManifestError"
+				) || matches!(
+					name.as_str(),
+					"fluent_typed"
+						| "fluent_syntax" | "std"
+						| "locale" | "new" | "new_unchecked"
+						| "validate" | "from_manifest"
+				) {
 					return Err(format!(
 						"{path}: generated name `{ty}` or `{name}` is reserved by the catalog API"
 					));
@@ -37,8 +44,13 @@ impl Node {
 
 				if depth == 0
 					&& (ty == "Translations"
-						|| matches!(name.as_str(), "locale" | "embedded" | "from_modules"))
-				{
+						|| matches!(
+							name.as_str(),
+							"from_modules"
+								| "from_modules_unchecked"
+								| "validate_modules" | "load_all"
+								| "load_all_unchecked" | "embed_manifest"
+						)) {
 					return Err(format!(
 						"{path}: generated name `{ty}` or `{name}` is reserved by the catalog API"
 					));

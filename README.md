@@ -6,6 +6,10 @@
 [![MSRV](https://img.shields.io/crates/msrv/fluent_typed_codegen)](https://crates.io/crates/fluent_typed_codegen)
 [![License](https://img.shields.io/crates/l/fluent_typed_codegen)](LICENSE)
 
+**Unreleased API on `feat/runtime-module-loading`.** Published 0.1.4 retains the
+previous embedded API. The examples below target this branch; no new release
+is implied.
+
 Generate a typed Rust API from modular Fluent translation files. Write messages
 in `.ftl` files, then call them through named Rust scopes:
 
@@ -51,10 +55,10 @@ and the lightweight inclusion macro in the normal dependency:
 
 ```toml
 [build-dependencies]
-fluent_typed_codegen = { version = "0.1.4", default-features = false, features = ["build"] }
+fluent_typed_codegen = { git = "https://github.com/SDA-31/fluent_typed_codegen", branch = "feat/runtime-module-loading", default-features = false, features = ["build"] }
 
 [dependencies]
-fluent_typed_codegen = { version = "0.1.4", default-features = false }
+fluent_typed_codegen = { git = "https://github.com/SDA-31/fluent_typed_codegen", branch = "feat/runtime-module-loading", default-features = false }
 fluent-typed = { version = "0.9.0", default-features = false, features = ["langneg"] }
 fluent-syntax = "0.12"
 
@@ -122,9 +126,11 @@ In `src/main.rs`:
 ```rust
 fluent_typed_codegen::translations!(pub mod texts);
 
-fn main() {
-    let translations = texts::Locale::En.load();
+fn main() -> Result<(), texts::LoadError> {
+    let manifest = texts::embed_manifest!();
+    let translations = texts::Translations::from_manifest(texts::Locale::En, &manifest)?;
     println!("{}", translations.presentation().hud().msg_greeting("Ada"));
+    Ok(())
 }
 ```
 
@@ -175,7 +181,7 @@ a PascalCase leaf type. For the setup above:
 
 | Catalog path | Generated type | Accessor |
 | --- | --- | --- |
-| Whole language | `texts::Translations` | `texts::Locale::En.load()` |
+| Whole language | `texts::Translations` | `Translations::from_modules(locale, &modules)?` |
 | `presentation/` | `texts::Presentation` | `translations.presentation()` |
 | `presentation/hud.ftl` | `texts::presentation::Hud` | `translations.presentation().hud()` |
 
@@ -187,15 +193,76 @@ Clones share immutable catalogs through `Arc`.
 
 ### Loading and replacing translations
 
-`Locale::load()` and `Translations::embedded(locale)` parse embedded FTL data.
-`Translations::from_modules(locale, &[("presentation/hud.ftl", source), ...])`
-checks complete path inventory, exact keys/variables/references and upstream typed
-contracts before returning a snapshot. Prose-only edits work; missing/extra/
-duplicate modules, removed variables and changed references fail. These methods
-perform no filesystem reads: applications supply complete FTL strings, read
-external files and decide when to replace a snapshot.
-The application also owns UI updates. Language/module inventory or schema changes
-require regeneration.
+The generated API accepts readable bytes without prescribing storage:
+
+```rust
+let hud = texts::presentation::Hud::new(locale, &bytes)?;
+let unchecked = texts::presentation::Hud::new_unchecked(locale, &bytes)?;
+texts::presentation::Hud::validate(&bytes)?;
+let path = texts::presentation::Hud::PATH;
+let locale = hud.locale();
+```
+
+Checked loading validates exact keys/references and upstream typed contracts.
+`new_unchecked` is a **safe** method that skips those compatibility checks; UTF-8
+and Fluent parsing still run. Incompatible input may later cause accessor panics
+or formatting failures. No constructor retains a borrow of the supplied bytes.
+Standalone validation uses temporary allocations; validating then constructing
+parses again. Normal checked loading requires no separate validation call.
+
+For complete languages, use `Translations::from_modules(locale, modules)` or
+`from_modules_unchecked`. Pairs contain `(logical_path, FTL_text)`. Both reject
+missing, duplicate and unknown module paths. `validate_modules(modules)` checks
+without retaining a catalog. `load_all` / `load_all_unchecked` accept
+`&[(Locale, &str, &str)]` and return `HashMap<Locale, Translations>`; every compiled
+locale must have a complete module set.
+
+Errors use the generated `LoadError` enum. Module diagnostics retain logical path
+and, for construction, locale. Applications own fallback, caching, publication,
+and module lifetime; formatting/accessors never start I/O.
+
+### Explicit file and embedded sources
+
+`LocalizationManifest` is one immutable source contract shared across generated
+catalogs. It contains configuration and an origin or static byte references,
+never parsed Fluent catalogs or a loaded-state cache. Enable the optional
+`manifest` feature on the normal dependency for TOML parsing:
+
+```rust
+let manifest = fluent_typed_codegen::LocalizationManifest::from_file(runtime_path)?;
+let hud = texts::presentation::Hud::from_manifest(locale, &manifest)?;
+let all = texts::Translations::from_manifest(locale, &manifest)?;
+```
+
+`from_file` reads only TOML. The leaf constructor reads only its own module for
+one language; the root constructor reads the complete language. `parse(source,
+origin)` accepts already obtained TOML without I/O. `config`, `file_path` and
+`embedded_modules` allow engines to inspect the contract and use their own loader.
+`read(locale, path)` and `read_modules(locale, paths)` expose readable bytes for
+inspection without parsing. Runtime paths need not match build-time paths.
+
+Explicit embedding uses a build-prepared recipe; the schema-generation step stays
+in `build.rs`:
+
+```rust
+let complete = texts::embed_manifest!();
+let hud_only = texts::embed_manifest!(module = "presentation/hud.ftl");
+let hud = texts::presentation::Hud::from_manifest(locale, &hud_only)?;
+```
+
+No expanded call means no FTL payload is included by this path. A macro in
+`if false` still expands. The no-argument form includes **all raw modules and all
+languages**; the `module` selector includes just that logical leaf in every
+language. Runtime construction decides what gets parsed, not what enters the
+binary. Static embedded bytes outlive dropped parsed catalogs. The generated
+macro is crate-local, including inside a `pub mod texts`; a library can expose
+its own function that explicitly invokes it. Group selectors are not provided.
+
+Migration from published 0.1.4 removes `Locale::load()` and
+`Translations::embedded()`. Use an explicit manifest or prepared bytes/pairs.
+`MODULES` loses its embedded-source field and `from_modules` now returns typed
+`LoadError` rather than `String`. Existing typed message calls and full-tree
+getters retain their shape. There is no decompressor API.
 
 ### Naming and references
 
@@ -229,7 +296,7 @@ compatible prose revisions. The application owns publication and UI updates.
 Build-time discovery still reads the source tree through an explicit `build.rs`.
 There is no archive option in the generator. For runtime distribution, package
 the original per-language FTL files, not generated Rust or intermediate bundles
-under `OUT_DIR`. `MODULES` records `(locale, relative module path, embedded source)`;
+under `OUT_DIR`. `MODULES` records `(locale, relative module path)` without translation data;
 `CATALOG_ASSET_PATH` and `LANGUAGES_DIRECTORY` describe the definition and layout.
 `ASSET_ROOT` is a build-time location, not a runtime storage requirement.
 
@@ -240,8 +307,8 @@ uses this same checked parser through a named asset source, then updates resourc
 and bound text. Other applications can call `from_modules` directly.
 
 Compatible prose updates need no new executable. Compiled locales, module paths
-and typed contracts still require regeneration when changed. Embedded fallbacks
-remain in the binary; external storage is not an external-only generation mode.
+and typed contracts still require regeneration when changed. There is no implicit
+embedded fallback; applications explicitly choose any fallback source.
 
 ## Numbers, plurals and RTL
 
@@ -291,7 +358,7 @@ icu_plurals = "2.3"
 Create the catalog and reusable formatters once for the selected locale:
 
 ```rust
-let translations = texts::Locale::Ru.load();
+let translations = texts::Translations::from_manifest(texts::Locale::Ru, &texts::embed_manifest!())?;
 let language: icu_locale_core::Locale = translations.locale().as_ref().parse()?;
 let formatter = icu_decimal::DecimalFormatter::try_new((&language).into(), Default::default())?;
 let rules = icu_plurals::PluralRules::try_new_cardinal((&language).into())?;
@@ -338,7 +405,8 @@ implement a rendering engine.
 | Feature selection | API and dependencies |
 | --- | --- |
 | `build` (default) | Discovery, validation, generation and the typed extension API. Use in build-dependencies. |
-| `default-features = false`, no features | Only `translations!`; the crate has no dependencies. Use in normal dependencies. |
+| `default-features = false`, no features | `translations!` plus std-only manifest contracts; zero external dependencies. |
+| `manifest` | Runtime TOML parsing and `LocalizationManifest::from_file` / `parse`; no generator or Fluent dependencies. |
 
 The macro declares a module, imports the consumer's `fluent-typed` and
 `fluent-syntax` libraries, and includes Cargo output. Keep those two dependency
@@ -353,10 +421,11 @@ workspace-wide all-features build may enable them in normal targets; verify
 runtime isolation with an isolated consumer graph.
 
 Manual inclusion supports custom runtime dependency aliases and frontend layouts.
-Import the runtime libraries as `fluent_typed` and `fluent_syntax` inside the
-generated module, then include `concat!(env!("OUT_DIR"), "/translations.rs")`.
-This approach does not require the normal macro dependency. Framework bridges
-can instead re-export the runtime libraries.
+Import the runtime libraries as `fluent_typed` and `fluent_syntax`, and this crate
+as `__fluent_codegen`, inside the generated module, then include
+`concat!(env!("OUT_DIR"), "/translations.rs")`. The std-only support dependency
+is required even for manual inclusion. Framework bridges may re-export it and
+the Fluent runtime libraries under those aliases.
 
 ## Outputs and indexing
 
@@ -365,7 +434,7 @@ All Cargo outputs stay in `OUT_DIR`, respecting the selected profile and target:
 | Output | Purpose |
 | --- | --- |
 | `translations.rs` | `Translations`, `Locale`, groups and file types. |
-| `locale_modules.rs` | Original sources and build-validated metadata. |
+| `locale_modules.rs` | Build-validated locale/path metadata, with no FTL payload. |
 | `validation.rs` | Private checked-loading contract shared with build-time validation. |
 | `modules/<FTL path without extension>/translations.{rs,ftl}` | Upstream API and bundle for each file. |
 | `inputs/<inventory hash>/` | Persistent staging inputs for Cargo reruns. |
@@ -393,7 +462,7 @@ registration code. The plain tree is always generated unchanged.
 | `type_attributes` | `Vec<syn::Attribute>` |
 | `type_declaration` | Annotated `syn::ItemStruct` in, `syn::Item` out |
 | `root_items` | `Vec<syn::Item>` |
-| `Scope` | `syn::Path` and a sequence of `syn::Ident` accessor names |
+| `Scope` | `type_path`, typed `accessors`, `logical_path`, and optional leaf `module_path` |
 
 Use `build_with`, `from_cargo_with` or `generate_with` to supply the extension.
 The re-exported `syn` provides matching syntax types and `parse_quote!`:
@@ -411,6 +480,10 @@ descriptors follow deterministic preorder; reserved names are checked before out
 Hooks construct trusted syntax, perform no I/O and own their dependency aliases.
 Output filenames must be direct `.rs` children and cannot overwrite core outputs.
 
+Generated groups expose a hidden `__from_parts(locale, children...)` integration
+hook. It accepts already loaded immediate children, checks their locales and
+assembles a complete scope without copying source buffers or reparsing Fluent.
+
 The default `type_declaration` preserves the struct. A wrapper must preserve its
 name, visibility, fields and attributes; a runtime-owned item macro can handle
 runtime dependency features without moving those decisions into the build script.
@@ -427,7 +500,7 @@ imports: compile a consumer of each extension's emitted API.
 build frontends. Choose a tool-owned directory beneath target/.
 
 ```sh
-git clone https://github.com/SDA-31/fluent_typed_codegen.git
+git clone --branch feat/runtime-module-loading https://github.com/SDA-31/fluent_typed_codegen.git
 cd fluent_typed_codegen
 # Replace the input path with a package configured as shown in Setup.
 cargo run --manifest-path Cargo.toml --example generate -- /path/to/consumer target/localization-example-generated
@@ -439,15 +512,15 @@ These commands work from a standalone generator checkout. Add `--locked --offlin
 after the first dependency resolution. The local lockfile and target directory
 are ignored; a consuming workspace owns its own lockfile.
 The [bundled example](examples/minimal/README.md) uses repository-local paths for
-development; external applications use the registry dependencies in Setup.
+development; external applications use the unreleased branch dependencies in Setup.
 
 ## Continuous integration
 
 [CI workflow](.github/workflows/ci.yml) runs on pushes (including tags), pull
 requests and manual dispatch. It checks this repository independently:
 
-- Generator tests, doctests, macro-only dependency isolation and the generated
-  consumer on Linux, Windows and macOS with stable Rust.
+- Generator/manifest tests, doctests, macro-only dependency isolation, optional
+  parser-only builds, opt-in embedding compilation and the generated consumer on Linux, Windows and macOS with stable Rust.
 - The same test suite on Linux with the declared minimum Rust 1.95.0.
 - Formatting, Clippy with warnings denied, Rustdoc in both feature modes and
   compilation of the packaged archive on Linux.

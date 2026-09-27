@@ -1,6 +1,8 @@
 //! Build-time localization.toml input; runtime integrations own their transport.
+#[cfg(any(feature = "build", feature = "manifest"))]
 use crate::paths;
 use std::path::PathBuf;
+#[cfg(any(feature = "build", feature = "manifest"))]
 use toml_edit::{DocumentMut, Table};
 
 /// Contents of `localization.toml`, separate from Cargo's asset-path settings.
@@ -20,6 +22,7 @@ pub struct CatalogConfig {
 	pub default_language: String,
 }
 
+#[cfg(any(feature = "build", feature = "manifest"))]
 impl CatalogConfig {
 	/// Parse TOML, rejecting unknown fields, missing language fields and unsafe paths.
 	///
@@ -65,6 +68,7 @@ impl CatalogConfig {
 	}
 }
 
+#[cfg(any(feature = "build", feature = "manifest"))]
 fn translations_directory(table: &Table) -> Result<String, String> {
 	match (
 		table.contains_key("translations-directory"),
@@ -79,6 +83,7 @@ fn translations_directory(table: &Table) -> Result<String, String> {
 	}
 }
 
+#[cfg(any(feature = "build", feature = "manifest"))]
 fn check_fields(table: &Table, allowed: &[&str]) -> Result<(), String> {
 	for (key, _) in table {
 		if !allowed.contains(&key) {
@@ -89,6 +94,7 @@ fn check_fields(table: &Table, allowed: &[&str]) -> Result<(), String> {
 	Ok(())
 }
 
+#[cfg(any(feature = "build", feature = "manifest"))]
 fn string_field(table: &Table, key: &str) -> Result<String, String> {
 	table
 		.get(key)

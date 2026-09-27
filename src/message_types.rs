@@ -61,6 +61,9 @@ pub(super) fn validate(node: &Node, types: &MessageTypes) -> Result<(), String> 
 		.map(|child| (child.ty.clone(), format!("catalog `{}`", child.path)))
 		.collect();
 	occupied.insert("Locale".into(), "generated Locale API".into());
+	for helper in ["LoadError", "LocalizationManifest", "ManifestError"] {
+		occupied.insert(helper.into(), "generated loading API".into());
+	}
 
 	if node.path.is_empty() {
 		occupied.insert("Translations".into(), "generated root API".into());

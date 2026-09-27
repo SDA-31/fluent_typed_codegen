@@ -89,6 +89,12 @@ fn extension_receives_typed_paths_and_raw_accessors_in_publication_order() {
 	];
 	assert_eq!(scopes[3].accessors, accessors);
 	assert!(scopes[0].accessors.is_empty());
+	assert_eq!(scopes[3].logical_path, "type/nested/my-hud");
+	assert_eq!(
+		scopes[3].module_path.as_deref(),
+		Some("type/nested/my-hud.ftl")
+	);
+	assert!(scopes[0].module_path.is_none());
 
 	let source = fs::read_to_string(output.join(extension.filename())).unwrap();
 	let file = syn::parse_file(&source).unwrap();

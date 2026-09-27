@@ -8,7 +8,8 @@
 /// ```ignore
 /// fluent_typed_codegen::translations!(pub mod texts);
 ///
-/// let translations: texts::Translations = texts::Locale::En.load();
+/// let manifest = texts::embed_manifest!();
+/// let translations = texts::Translations::from_manifest(texts::Locale::En, &manifest)?;
 /// ```
 ///
 /// This example needs application-owned FTL and build output; the
@@ -26,6 +27,7 @@ macro_rules! translations {
 		// Upstream emits helpers and argument lists consumers may not use.
 		#[allow(dead_code, clippy::derivable_impls, clippy::too_many_arguments)]
 		$visibility mod $name {
+			use $crate as __fluent_codegen;
 			#[allow(clippy::single_component_path_imports)]
 			use ::fluent_syntax;
 			#[allow(clippy::single_component_path_imports)]
@@ -33,5 +35,25 @@ macro_rules! translations {
 
 			::std::include!(::std::concat!(::std::env!("OUT_DIR"), "/translations.rs"));
 		}
+	};
+}
+
+/// Define a crate-local embedded-manifest macro from deferred include expressions.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __define_embed_manifest {
+	($recipe:expr; $( $module:tt => $module_recipe:expr ),* $(,)?) => {
+		#[allow(unused_macros)]
+		macro_rules! __embed_manifest {
+			() => {
+				$crate::LocalizationManifest::__embedded($recipe)
+			};
+			$((module = $module) => { $crate::LocalizationManifest::__embedded($module_recipe) };)*
+		}
+
+		/// Explicitly include this package's build-time FTL in the calling crate.
+		/// Available only within the crate declaring `translations!`.
+		#[allow(unused_imports)]
+		pub(crate) use __embed_manifest as embed_manifest;
 	};
 }

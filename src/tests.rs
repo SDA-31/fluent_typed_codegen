@@ -12,6 +12,7 @@ mod directories;
 mod documentation;
 mod incremental;
 mod leaf_api;
+mod loading;
 mod syntax;
 
 struct Fixture(PathBuf);
@@ -132,12 +133,7 @@ fn discovers_all_languages_and_nested_modules_in_a_relocated_catalog() {
 	};
 
 	for language in ["de", "fr", "pt-BR"] {
-		let path = fixture
-			.0
-			.join(format!("data/strings/languages/{language}/ui/main.ftl"));
-		let path = path.to_str().unwrap();
-		let expected: syn::ExprTuple =
-			parse_quote!((#language, "ui/main.ftl", include_str!(#path)));
+		let expected: syn::ExprTuple = parse_quote!((#language, "ui/main.ftl"));
 		assert!(entries.elems.iter().any(|entry| {
 			let syn::Expr::Tuple(tuple) = entry else {
 				return false;

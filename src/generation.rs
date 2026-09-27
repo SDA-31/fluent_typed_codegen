@@ -82,7 +82,7 @@ fn cargo_generation(extension: Option<&dyn Extension>) -> Result<(), String> {
 /// under `modules/<module path>/`. Persistent `inputs/<inventory hash>/` staging
 /// files let upstream Cargo rerun dependencies remain valid between builds.
 /// Each FTL file has its own key namespace. Generated modules require consumer-owned
-/// `fluent-typed` and `fluent-syntax` dependencies, including embedded-only use. Framework
+/// `fluent-typed`, `fluent-syntax` and this crate's std-only runtime support. Framework
 /// extensions may supply these through their own runtime re-exports. Language
 /// directories and nested modules are discovered deterministically. Unrelated
 /// output files, including previously generated extensions, are left untouched.

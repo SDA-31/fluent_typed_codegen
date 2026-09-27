@@ -12,7 +12,8 @@
 //!
 //! - **`build` (default):** discovery, schema validation, source generation and
 //!   the `Extension` API for custom integrations. Enable in build-dependencies.
-//! - **No default features:** only the dependency-free [`translations!`] macro.
+//! - **`manifest`:** optional TOML parsing and file-manifest factory.
+//! - **No default features:** [`translations!`] and std-only source contracts, with no dependencies.
 //!   Use this configuration in normal dependencies. The generated code still
 //!   requires the application's `fluent-typed` and `fluent-syntax` dependencies.
 //!
@@ -62,7 +63,8 @@
 //! ```ignore
 //! fluent_typed_codegen::translations!(pub mod texts);
 //!
-//! let translations: texts::Translations = texts::Locale::En.load();
+//! let manifest = texts::embed_manifest!();
+//! let translations = texts::Translations::from_manifest(texts::Locale::En, &manifest)?;
 //! let ui: &texts::Ui = translations.ui();
 //! let menu: &texts::ui::Menu = ui.menu();
 //! println!("{}", menu.msg_title());
@@ -80,8 +82,9 @@
 //! accepts an explicit tool-owned output directory for custom build frontends.
 //! Failed generation can leave partial output; always propagate build errors.
 //!
-//! `Locale::load()` parses embedded FTL. Generated `Translations::from_modules`
-//! validates and parses caller-supplied FTL strings before
+//! Generated leaves expose checked `new(locale, bytes)`, safe `new_unchecked`,
+//! and standalone `validate`. `Translations::from_modules` validates and parses
+//! caller-supplied FTL strings before
 //! returning a snapshot. Compatible prose edits can be loaded without rebuilding;
 //! changes to the schema or language/module inventory require regeneration.
 //! These runtime methods perform no filesystem reads. File loading and replacing
@@ -90,7 +93,11 @@
 //! module keys remain paths below the locale directory, not storage URLs. The
 //! returned snapshot retains no input borrows. Read a coherent revision before
 //! parsing and replace application state only after validation succeeds. Archive
-//! I/O and pack installation are not generator features; embedded fallbacks remain.
+//! I/O and pack installation remain application choices; there is no implicit fallback.
+//! `LocalizationManifest` optionally reads files through `from_manifest`, while
+//! `texts::embed_manifest!()` explicitly includes a build-prepared raw source set.
+//! Without that macro invocation, generated APIs contain no FTL payload.
+//! The embedded macro is crate-local; `module = "ui/menu.ftl"` selects one leaf.
 //! See the [external storage guide](https://github.com/SDA-31/fluent_typed_codegen#external-storage-and-translation-packs).
 //!
 //! # Numbers, plural selection and presentation
@@ -129,13 +136,20 @@
 //! The repository links follow `main`; this API reference describes the viewed version.
 #![warn(missing_docs)]
 mod macros;
+mod manifest;
 
-#[cfg(feature = "build")]
+#[cfg(test)]
+mod manifest_tests;
+
+pub use manifest::{LocalizationManifest, ManifestError};
+
 mod configuration;
 #[cfg(feature = "build")]
 mod diagnostics;
 #[cfg(feature = "build")]
 mod discovery;
+#[cfg(feature = "build")]
+mod embedding;
 #[cfg(feature = "build")]
 mod extension;
 #[cfg(feature = "build")]
@@ -146,7 +160,6 @@ mod locale;
 mod message_types;
 #[cfg(feature = "build")]
 mod metadata;
-#[cfg(feature = "build")]
 mod paths;
 #[cfg(feature = "build")]
 mod references;
@@ -163,7 +176,6 @@ mod tree;
 #[cfg(feature = "build")]
 mod upstream;
 
-#[cfg(feature = "build")]
 pub use configuration::CatalogConfig;
 #[cfg(feature = "build")]
 pub use extension::{Extension, Scope};
