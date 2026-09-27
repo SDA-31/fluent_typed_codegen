@@ -451,6 +451,7 @@ implement a rendering engine.
 | Symptom | What to check |
 | --- | --- |
 | `Hud::new`, `from_manifest` or `embed_manifest!` is missing | Use the Git dependencies from [Setup](#setup) in **both** Cargo sections. Published 0.1.4 uses the previous API. |
+| `embed_manifest!(module = texts::presentation::Hud)` is rejected | Typed selection requires the [current local 0.2.0 setup](docs/loading.md#embed-one-module); the pinned Git snapshot predates it. Use a generated path or `use` alias, not a string or `type` alias. |
 | `translations!` cannot find `OUT_DIR` or `translations.rs` | Add the [build.rs](#2-run-generation-from-buildrs) beside the application's Cargo.toml and enable `build` on its build dependency. Resolve any earlier generation error first. |
 | `LocalizationManifest::from_file` or `parse` is missing | Enable `manifest` on the **normal** dependency, as in the [file recipe](docs/loading.md#read-files-through-a-manifest). A build dependency's features do not enable runtime APIs. |
 | Generated code cannot resolve `fluent_typed` or `fluent_syntax` | Keep `fluent-typed` and `fluent-syntax` under those canonical dependency names in the application's `[dependencies]`. |

@@ -19,6 +19,10 @@
 /// the module, imports the Fluent libraries and includes Cargo output; it neither
 /// generates sources nor loads catalogs. Explicit low-level
 /// inclusion remains supported for custom dependency aliases or frontend layouts.
+/// For selective embedding, call
+/// `texts::embed_manifest!(module = texts::presentation::Hud)` with a generated
+/// leaf or group type, or a `use` alias. A declaration alone embeds no FTL,
+/// including in unoptimized builds; the no-argument form embeds the whole tree.
 #[macro_export]
 macro_rules! translations {
 	($(#[$attribute:meta])* $visibility:vis mod $name:ident $(;)?) => {
