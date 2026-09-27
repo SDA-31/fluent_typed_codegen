@@ -7,7 +7,9 @@ before 1.0, a minor release can introduce incompatible API changes.
 
 ## [Unreleased]
 
-Planned for 0.2.0. Follow the [migration from 0.1.4](docs/migration-0.2.md)
+## [0.2.0] - 2026-09-28
+
+Follow the [migration from 0.1.4](docs/migration-0.2.md)
 for dependency updates and before/after initialization examples.
 
 ### Added
@@ -54,5 +56,6 @@ this release does not introduce automatic fallback or caching.
 This documentation release changes no public API or parsing behavior.
 Earlier releases predate this changelog; their source is retained in Git tags.
 
-[Unreleased]: https://github.com/SDA-31/fluent_typed_codegen/compare/v0.1.4...HEAD
+[Unreleased]: https://github.com/SDA-31/fluent_typed_codegen/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/SDA-31/fluent_typed_codegen/compare/v0.1.4...v0.2.0
 [0.1.4]: https://github.com/SDA-31/fluent_typed_codegen/compare/v0.1.3...v0.1.4
