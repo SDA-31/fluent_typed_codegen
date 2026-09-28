@@ -7,6 +7,8 @@ before 1.0, a minor release can introduce incompatible API changes.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-09-28
+
 ### Fixed
 
 - Embedded module lookup builds a shared index on first use instead of scanning
@@ -62,6 +64,7 @@ this release does not introduce automatic fallback or caching.
 This documentation release changes no public API or parsing behavior.
 Earlier releases predate this changelog; their source is retained in Git tags.
 
-[Unreleased]: https://github.com/SDA-31/fluent_typed_codegen/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/SDA-31/fluent_typed_codegen/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/SDA-31/fluent_typed_codegen/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/SDA-31/fluent_typed_codegen/compare/v0.1.4...v0.2.0
 [0.1.4]: https://github.com/SDA-31/fluent_typed_codegen/compare/v0.1.3...v0.1.4
