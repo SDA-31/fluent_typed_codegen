@@ -6,8 +6,6 @@
 [![MSRV](https://img.shields.io/crates/msrv/fluent_typed_codegen)](https://crates.io/crates/fluent_typed_codegen)
 [![License](https://img.shields.io/crates/l/fluent_typed_codegen)](LICENSE)
 
-[Migrate from 0.1.4](docs/migration-0.2.md) · [Changelog](CHANGELOG.md)
-
 Generate a typed Rust API from modular Fluent translation files. Write messages
 in `.ftl` files, then call them through named Rust scopes:
 
