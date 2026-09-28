@@ -1,6 +1,6 @@
 //! Generate typed Rust translation APIs from modular Fluent catalogs.
 //!
-//! This reference documents the 0.2.0 runtime-loading API. See the
+//! See the
 //! [setup guide](https://github.com/SDA-31/fluent_typed_codegen/tree/main#setup)
 //! for installation, and the
 //! [migration guide](https://github.com/SDA-31/fluent_typed_codegen/blob/main/docs/migration-0.2.md)

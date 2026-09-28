@@ -1,6 +1,6 @@
-# Migrate from fluent_typed_codegen 0.1.4 to 0.2.0
+# Migrate from fluent_typed_codegen 0.1.4 to 0.2.1
 
-This guide upgrades an application using the 0.1.4 API to 0.2.0.
+This guide upgrades an application using the 0.1.4 API to 0.2.1.
 
 The smallest migration keeps your full translation tree and typed message calls.
 Only initialization, error handling and code that reads embedded metadata change.
@@ -13,12 +13,12 @@ localization metadata, FTL layout and the two Fluent runtime dependencies:
 
 ```toml
 [dependencies]
-fluent_typed_codegen = { version = "0.2.0", default-features = false }
+fluent_typed_codegen = { version = "0.2.1", default-features = false }
 fluent-typed = { version = "0.9.0", default-features = false, features = ["langneg"] }
 fluent-syntax = "0.12"
 
 [build-dependencies]
-fluent_typed_codegen = { version = "0.2.0", default-features = false, features = ["build"] }
+fluent_typed_codegen = { version = "0.2.1", default-features = false, features = ["build"] }
 ```
 
 Remove development Git/path overrides for this package when switching to the
@@ -75,8 +75,8 @@ let hud = texts::presentation::Hud::from_manifest(texts::Locale::En, &manifest)?
 
 A leaf includes its file across known languages; a group such as
 `texts::Presentation` includes its descendant leaves. Use a generated path or a
-`use` alias. String selectors from earlier development snapshots are not part
-of 0.2.0; arbitrary `type` aliases and generic parameters are not selectors.
+`use` alias. Strings, arbitrary `type` aliases and generic parameters are not
+selectors.
 A HUD-only manifest cannot construct a root that also requires other modules.
 Unselected FTL stays out of debug builds too, without relying on optimization.
 
@@ -130,7 +130,7 @@ validation-only use and loading every known language.
 
 ## 4. Update metadata and custom integrations
 
-| 0.1.4 usage | 0.2.0 replacement |
+| 0.1.4 usage | 0.2.1 replacement |
 | --- | --- |
 | `MODULES: &[(&str, &str, &str)]` | `MODULES: &[(&str, &str)]`: locale and logical path only |
 | Read FTL from the third tuple field | Obtain readable data from your storage or an explicit manifest |
