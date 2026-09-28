@@ -74,10 +74,10 @@ edition = "2024"
 rust-version = "1.95"
 
 [build-dependencies]
-fluent_typed_codegen = { version = "0.2.0", default-features = false, features = ["build"] }
+fluent_typed_codegen = { version = "0.2.1", default-features = false, features = ["build"] }
 
 [dependencies]
-fluent_typed_codegen = { version = "0.2.0", default-features = false }
+fluent_typed_codegen = { version = "0.2.1", default-features = false }
 fluent-typed = { version = "0.9.0", default-features = false, features = ["langneg"] }
 fluent-syntax = "0.12"
 
@@ -444,8 +444,8 @@ implement a rendering engine.
 
 | Symptom | What to check |
 | --- | --- |
-| `Hud::new`, `from_manifest` or `embed_manifest!` is missing | Use version 0.2.0 from [Setup](#setup) in **both** Cargo sections. Published 0.1.4 uses the previous API. |
-| `embed_manifest!(module = texts::presentation::Hud)` is rejected | Use version 0.2.0 from [Setup](#setup) in both dependency sections. Pass a generated path or `use` alias, not a string or `type` alias. |
+| `Hud::new`, `from_manifest` or `embed_manifest!` is missing | Use version 0.2.1 from [Setup](#setup) in **both** Cargo sections. Published 0.1.4 uses the previous API. |
+| `embed_manifest!(module = texts::presentation::Hud)` is rejected | Use version 0.2.1 from [Setup](#setup) in both dependency sections. Pass a generated path or `use` alias, not a string or `type` alias. |
 | `translations!` cannot find `OUT_DIR` or `translations.rs` | Add the [build.rs](#2-run-generation-from-buildrs) beside the application's Cargo.toml and enable `build` on its build dependency. Resolve any earlier generation error first. |
 | `LocalizationManifest::from_file` or `parse` is missing | Enable `manifest` on the **normal** dependency, as in the [file recipe](docs/loading.md#read-files-through-a-manifest). A build dependency's features do not enable runtime APIs. |
 | Generated code cannot resolve `fluent_typed` or `fluent_syntax` | Keep `fluent-typed` and `fluent-syntax` under those canonical dependency names in the application's `[dependencies]`. |

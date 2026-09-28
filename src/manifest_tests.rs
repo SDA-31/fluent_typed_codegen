@@ -2,6 +2,44 @@ use crate::{CatalogConfig, LocalizationManifest, ManifestError};
 use std::{borrow::Cow, path::Path};
 
 #[test]
+fn embedded_lookup_preserves_entry_and_request_order_without_copying_payloads() {
+	const FIRST: &[u8] = b"title = First\n";
+	let manifest = LocalizationManifest::__embedded((
+		"en",
+		"en",
+		"translations",
+		&[
+			("fr", "z.ftl", b"title = French\n"),
+			("en", "z.ftl", FIRST),
+			("en", "a.ftl", b"title = A\n"),
+			("en", "z.ftl", b"title = Duplicate\n"),
+		],
+	));
+	let cloned = manifest.clone();
+	let modules = cloned
+		.read_modules("en", &["z.ftl", "a.ftl", "z.ftl"])
+		.unwrap();
+	assert_eq!(
+		modules
+			.iter()
+			.map(|(path, _)| path.as_str())
+			.collect::<Vec<_>>(),
+		["z.ftl", "a.ftl", "z.ftl"]
+	);
+	assert!(std::ptr::eq(modules[0].1.as_ref(), FIRST));
+	assert!(std::ptr::eq(
+		manifest.read("en", "z.ftl").unwrap().as_ref(),
+		FIRST
+	));
+	assert_eq!(
+		manifest.read("fr", "z.ftl").unwrap().as_ref(),
+		b"title = French\n"
+	);
+	assert_eq!(manifest.embedded_modules().unwrap()[0].0, "fr");
+	assert_eq!(manifest.embedded_modules().unwrap().len(), 4);
+}
+
+#[test]
 fn embedded_contract_borrows_only_explicit_bytes() {
 	let manifest = LocalizationManifest::__embedded((
 		"en",

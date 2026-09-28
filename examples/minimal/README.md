@@ -1,6 +1,6 @@
 # Minimal typed localization in Rust
 
-This example uses the 0.2.0 API from the repository checkout.
+This example uses the 0.2.1 API from the repository checkout.
 
 A complete Rust application using a generated translation API. The default greeting
 and documentation are English; Spanish and Russian translations are included.
@@ -52,7 +52,7 @@ cargo clippy --manifest-path examples/minimal/Cargo.toml --all-targets -- -D war
 cargo tree --manifest-path examples/minimal/Cargo.toml --edges normal
 ```
 
-The checkout provides the 0.2.0 API from the README setup, including
+The checkout provides the 0.2.1 API from the README setup, including
 typed leaf/group selection. Follow the
 [embedded recipe](../../docs/loading.md#embed-one-module) to try that variant.
 Run these commands in the clone, not in your application's directory. Installing the

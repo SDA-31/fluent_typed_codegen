@@ -7,6 +7,12 @@ before 1.0, a minor release can introduce incompatible API changes.
 
 ## [Unreleased]
 
+### Fixed
+
+- Embedded module lookup builds a shared index on first use instead of scanning
+  every embedded entry for each request. Large `read_modules` calls no longer
+  spend quadratic time finding their source bytes; payloads remain borrowed.
+
 ## [0.2.0] - 2026-09-28
 
 Follow the [migration from 0.1.4](docs/migration-0.2.md)

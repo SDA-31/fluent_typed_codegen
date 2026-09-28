@@ -1,6 +1,6 @@
 # Loading translations in a Rust application
 
-These recipes use the 0.2.0 API from the [README setup](../README.md#setup).
+These recipes use the 0.2.1 API from the [README setup](../README.md#setup).
 Complete that setup first. Each recipe includes a complete replacement for
 its `src/main.rs`; keep the same `build.rs`, manifest and English/Spanish FTL files.
 Run `cargo run` from the application directory after choosing a recipe.
@@ -25,7 +25,7 @@ accessor never opens a file or loads another module.
 First replace only the `fluent_typed_codegen` entry under `[dependencies]` with:
 
 ```toml
-fluent_typed_codegen = { version = "0.2.0", default-features = false, features = ["manifest"] }
+fluent_typed_codegen = { version = "0.2.1", default-features = false, features = ["manifest"] }
 ```
 
 Keep the `[build-dependencies]` entry unchanged. The `manifest` feature enables
@@ -149,7 +149,7 @@ Embedding needs no `manifest` feature and performs no runtime filesystem reads.
 The macro uses the manifest already processed by `build.rs`; it takes no runtime
 path or `LocalizationManifest` value.
 
-Keep the 0.2.0 dependencies from [Setup](../README.md#setup); this version
+Keep the 0.2.1 dependencies from [Setup](../README.md#setup); this version
 supports typed embedded selection. Replace `src/main.rs` with:
 
 ```rust

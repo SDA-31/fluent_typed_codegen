@@ -2,11 +2,14 @@
 use crate::{CatalogConfig, paths};
 use std::{
 	borrow::Cow,
+	collections::HashMap,
 	fmt, fs, io,
 	path::{Path, PathBuf},
+	sync::{Arc, OnceLock},
 };
 
 type EmbeddedModules = &'static [(&'static str, &'static str, &'static [u8])];
+type EmbeddedIndex = HashMap<&'static str, HashMap<&'static str, &'static [u8]>>;
 
 /// A source contract for readable FTL; creating one never parses FTL.
 ///
@@ -26,6 +29,7 @@ enum Source {
 	Embedded {
 		config: CatalogConfig,
 		modules: EmbeddedModules,
+		index: Arc<OnceLock<EmbeddedIndex>>,
 	},
 }
 
@@ -141,6 +145,8 @@ impl LocalizationManifest {
 	///
 	/// File data is owned; embedded data is borrowed. Locale and module are logical
 	/// paths, not storage addresses. Engine integrations should use their own I/O.
+	/// The first embedded read indexes entry metadata; clones share that index.
+	/// Building it does not copy or parse the embedded FTL payloads.
 	///
 	/// # Errors
 	/// Rejects invalid paths, missing embedded entries and I/O failures.
@@ -170,10 +176,23 @@ impl LocalizationManifest {
 					.map(Cow::Owned)
 					.map_err(|source| ManifestError::Io { path, source })
 			}
-			Source::Embedded { modules, .. } => modules
-				.iter()
-				.find(|(language, module, _)| *language == locale && *module == path)
-				.map(|(_, _, bytes)| Cow::Borrowed(*bytes))
+			Source::Embedded { modules, index, .. } => index
+				.get_or_init(|| {
+					let mut index = EmbeddedIndex::new();
+
+					for &(language, module, bytes) in *modules {
+						index
+							.entry(language)
+							.or_default()
+							.entry(module)
+							.or_insert(bytes);
+					}
+
+					index
+				})
+				.get(locale)
+				.and_then(|modules| modules.get(path))
+				.map(|bytes| Cow::Borrowed(*bytes))
 				.ok_or_else(|| ManifestError::MissingModule {
 					locale: locale.into(),
 					path: path.into(),
@@ -207,7 +226,11 @@ impl LocalizationManifest {
 			languages_directory: directory.into(),
 		};
 		Self {
-			source: Source::Embedded { config, modules },
+			source: Source::Embedded {
+				config,
+				modules,
+				index: Arc::new(OnceLock::new()),
+			},
 		}
 	}
 }
