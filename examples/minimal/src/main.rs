@@ -8,7 +8,7 @@ l10n::translations!(pub mod texts);
 // Explicitly embed the complete source set. Select a relative leaf or group here
 // instead of Translations when the application only needs part of the tree.
 texts::embed_manifest! {
-    const EMBEDDED = Translations;
+	const EMBEDDED = Translations;
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

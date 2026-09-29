@@ -196,3 +196,16 @@ Probes live under `/tmp/localization-doc-audit-2026-09-29`; they are not reposit
 files. External link availability and the release compiler/backend matrix were
 not rerun. No implementation behavior, package version, CI workflow or release
 reference changed during this documentation audit.
+
+## CI follow-up
+
+The first branch CI run, `36589703259`, passed the complete generator test jobs
+on Linux stable, Linux Rust 1.95.0, Windows and macOS. The quality job stopped at
+rustfmt: the `EMBEDDED` declaration in the nested engine-free example used spaces
+instead of the repository's tabs. Formatting only the generator package had not
+covered that separate example package. The example is now formatted and its
+explicit package formatting check passes. No behavior changed.
+
+A correction is being verified by a new branch-push CI run. Local heavyweight
+compilation is left to the concurrent game task; this correction needs formatting
+checks only. Runtime integration must pin the matching generator revision.
