@@ -1,8 +1,7 @@
 # Loading translations in a Rust application
 
-These recipes use the 0.2.1 API from the [README setup](../README.md#setup).
-Complete that setup first. Each recipe includes a complete replacement for
-its `src/main.rs`; keep the same `build.rs`, manifest and English/Spanish FTL files.
+Start with the [README setup](../README.md#setup). Each recipe includes a complete
+replacement for its `src/main.rs`; keep the same `build.rs`, manifest and English/Spanish FTL files.
 Run `cargo run` from the application directory after choosing a recipe.
 
 The build script generates types and checks the source files. Runtime code then
@@ -149,7 +148,9 @@ Embedding needs no `manifest` feature and performs no runtime filesystem reads.
 The macro uses the manifest already processed by `build.rs`; it takes no runtime
 path or `LocalizationManifest` value.
 
-Use the dependencies from [Setup](../README.md#setup). Replace `src/main.rs` with:
+For this constant-declaration recipe, first configure the
+[local generator checkout](../README.md#work-on-local-checkouts) in both dependency
+graphs. Then replace `src/main.rs` with:
 
 ```rust
 fluent_typed_codegen::translations!(pub mod texts);

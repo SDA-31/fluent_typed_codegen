@@ -174,3 +174,25 @@ Rustdoc passed for both libraries with warnings denied and the runtime's
 README and packaged Rustdoc describe the same two-form API. The supported
 compiler/backend matrix and registry-only release checks remain outside this
 local correction.
+
+## Complete documentation audit
+
+A dedicated read-only reviewer checked all six tracked Markdown files, public
+and generated Rustdoc, example sources, feature declarations and the published
+`v0.2.1` macro. Constant recipes had incorrectly inherited registry 0.2.1 setup
+instructions. They now require a matching source checkout; the versioned migration
+keeps the published no-argument API. The main registry quickstart is unchanged.
+The reviewer rechecked the corrections and reported no remaining findings.
+
+Across both libraries, 24 Markdown files and 210 local links/anchors were checked.
+Rustdoc built with warnings denied; all ten active doctests passed (six generator,
+four runtime). The selective loading recipe was extracted from Markdown together
+with the README Cargo/FTL/build-script blocks, built offline outside the enclosing
+workspace, and printed the expected Spanish greeting. Its documented Cargo patch
+resolved the same generator for build and runtime. `cargo package --list` confirms
+all Rustdoc include files are packaged. Formatting and whitespace checks passed.
+
+Probes live under `/tmp/localization-doc-audit-2026-09-29`; they are not repository
+files. External link availability and the release compiler/backend matrix were
+not rerun. No implementation behavior, package version, CI workflow or release
+reference changed during this documentation audit.

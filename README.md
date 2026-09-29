@@ -275,7 +275,8 @@ origin)` accepts already obtained TOML without I/O. `config`, `file_path` and
 inspection without parsing. Runtime paths need not match build-time paths.
 
 Explicit embedding uses a build-prepared recipe; the schema-generation step stays
-in `build.rs`. See the
+in `build.rs`. For the constant-declaration recipe below, configure a
+[local generator checkout](#work-on-local-checkouts) first. See the
 [complete recipe](docs/loading.md#embed-one-module).
 
 ```rust
@@ -446,7 +447,7 @@ implement a rendering engine.
 | Symptom | What to check |
 | --- | --- |
 | `Hud::new`, `from_manifest` or `embed_manifest!` is missing | Use version 0.2.1 from [Setup](#setup) in **both** Cargo sections. Published 0.1.4 uses the previous API. |
-| `embed_manifest!` rejects its input | Use an empty invocation for all sources or a declaration such as `pub const HUD = presentation::Hud;` for a subset. Selectors are relative schema paths, not application aliases. |
+| `embed_manifest!` rejects a constant declaration | Use the [local checkout setup](#work-on-local-checkouts) for this recipe, keeping build and runtime on the same generator revision. Selectors are relative schema paths, not application aliases. |
 | `translations!` cannot find `OUT_DIR` or `translations.rs` | Add the [build.rs](#2-run-generation-from-buildrs) beside the application's Cargo.toml and enable `build` on its build dependency. Resolve any earlier generation error first. |
 | `LocalizationManifest::from_file` or `parse` is missing | Enable `manifest` on the **normal** dependency, as in the [file recipe](docs/loading.md#read-files-through-a-manifest). A build dependency's features do not enable runtime APIs. |
 | Generated code cannot resolve `fluent_typed` or `fluent_syntax` | Keep `fluent-typed` and `fluent-syntax` under those canonical dependency names in the application's `[dependencies]`. |
@@ -574,6 +575,22 @@ after the first dependency resolution. The local lockfile and target directory
 are ignored; a consuming workspace owns its own lockfile.
 The [bundled example](examples/minimal/README.md) uses repository-local paths for
 development; external applications use the registry dependencies in Setup.
+
+### Work on local checkouts
+
+To try source-checkout recipes in your own application, keep the dependency
+features from Setup and add this override to your application's Cargo.toml:
+
+```toml
+[patch.crates-io]
+fluent_typed_codegen = { path = "/absolute/path/to/fluent_typed_codegen" }
+```
+
+Use the checkout containing the API you are testing. The patch applies to both
+normal and build dependencies, so generated code and runtime macros stay aligned.
+In a Cargo workspace, put it in the workspace root. The bundled example already
+uses matching path dependencies and needs no patch. Released applications use
+the registry setup instead.
 
 ## Continuous integration
 

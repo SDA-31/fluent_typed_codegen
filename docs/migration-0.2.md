@@ -66,23 +66,9 @@ selected language. Generation alone embeds no FTL. Static embedded bytes remain
 in the executable for its lifetime, even when parsed catalogs are dropped.
 There is no compressor/decompressor callback.
 
-For a smaller embedded source, declare a manifest with a relative schema selector:
-
-```rust
-texts::embed_manifest! {
-    pub const HUD = presentation::Hud;
-}
-let hud = texts::presentation::Hud::from_manifest(texts::Locale::En, &HUD)?;
-```
-
-A leaf includes its file across known languages; a group such as
-`Presentation` includes its descendant leaves. Selectors are relative schema
-paths, without `texts::`. Strings, imported aliases and generic parameters are
-not selectors. Catalog aliases remain usable for constructors.
-Only the empty invocation and the declaration block are accepted; old selector
-arguments must be moved into a constant declaration.
-A HUD-only manifest cannot construct a root that also requires other modules.
-Unselected FTL stays out of debug builds too, without relying on optimization.
+This migration uses the no-argument macro supported by the selected registry
+version. For selective constant manifests when working on the generator itself,
+follow the separate [source-checkout recipe](loading.md#embed-one-module).
 
 ## 3. Keep your storage or choose files
 
