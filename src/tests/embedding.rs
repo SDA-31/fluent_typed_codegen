@@ -59,6 +59,8 @@ mod texts {{
     include!({generated:?});
 }}
 pub use texts::ui::Options as SettingsTexts;
+pub type Interface = SettingsTexts;
+extern crate self as application;
 "#
 	);
 
@@ -80,8 +82,20 @@ pub use texts::ui::Options as SettingsTexts;
 		&schema,
 		r#"
     let direct = texts::embed_manifest!(module = texts::ui::Options);
-    let alias = texts::embed_manifest!(module = SettingsTexts,);
-    assert_eq!(direct.embedded_modules(), alias.embedded_modules());
+    let short = texts::embed_manifest!(texts::ui::Options,);
+    let absolute = texts::embed_manifest!(::application::texts::ui::Options);
+    let relative = texts::embed_manifest!(self::texts::ui::Options);
+    assert_eq!(direct.embedded_modules(), short.embedded_modules());
+    assert_eq!(direct.embedded_modules(), absolute.embedded_modules());
+    assert_eq!(direct.embedded_modules(), relative.embedded_modules());
+    let catalog: Interface = SettingsTexts::from_manifest(texts::Locale::De, &direct).unwrap();
+    assert!(catalog.msg_title().contains("FTL_OPTIONS_SENTINEL_813627"));
+    mod consumer {
+        pub fn selected() -> l10n::LocalizationManifest {
+            super::texts::embed_manifest!(super::texts::ui::Options)
+        }
+    }
+    assert_eq!(direct.embedded_modules(), consumer::selected().embedded_modules());
     assert_eq!(direct.embedded_modules().unwrap().len(), 3);
     for (locale, path, bytes) in direct.embedded_modules().unwrap() {
         assert_eq!(*path, "ui/options.ftl");
@@ -89,6 +103,26 @@ pub use texts::ui::Options as SettingsTexts;
     }
 "#,
 		&["ui/options.ftl"],
+	);
+
+	for (path, module, source) in &originals {
+		if *module == "ui/main.ftl" {
+			fs::write(path, source).unwrap();
+		}
+	}
+
+	// Both ui and ui_extra declare Main: matching a type name alone is insufficient.
+	build_and_inspect(
+		&fixture,
+		&schema,
+		r#"
+    let manifest = texts::embed_manifest!(texts::ui::Main);
+    for (_, path, bytes) in manifest.embedded_modules().unwrap() {
+        assert_eq!(*path, "ui/main.ftl");
+        println!("{}", std::str::from_utf8(bytes).unwrap());
+    }
+"#,
+		&["ui/main.ftl"],
 	);
 
 	for (path, module, source) in &originals {
@@ -104,6 +138,8 @@ pub use texts::ui::Options as SettingsTexts;
     use texts::ui::r#type as nested;
     let group = texts::embed_manifest!(module = crate::texts::Ui);
     let leaf = texts::embed_manifest!(module = nested::Detail);
+    let raw_path = texts::embed_manifest!(texts::ui::r#type::Detail);
+    assert_eq!(leaf.embedded_modules(), raw_path.embedded_modules());
     assert_eq!(leaf.embedded_modules().unwrap().len(), 3);
     assert_eq!(group.embedded_modules().unwrap().len(), 9);
     for (locale, path, bytes) in group.embedded_modules().unwrap() {
@@ -138,24 +174,88 @@ pub use texts::ui::Options as SettingsTexts;
 		],
 	);
 
-	for (selector, diagnostic) in [
-		("texts::ui::Missing", "Missing"),
-		("\"ui/options.ftl\"", "no rules expected"),
-	] {
-		fixture.write(
-			"src/main.rs",
-			&format!(
-				"{schema}\nfn main() {{ let _ = texts::embed_manifest!(module = {selector}); }}\n"
-			),
-		);
-		let output = cargo(&fixture, "check");
-		let stderr = String::from_utf8_lossy(&output.stderr);
-		assert!(
-			!output.status.success(),
-			"selector unexpectedly accepted: {selector}"
-		);
-		assert!(stderr.contains(diagnostic), "{stderr}");
+	// Invalid selectors must not expand even one include, independently of diagnostics.
+	for (path, _, _) in &originals {
+		fs::remove_file(path).unwrap();
 	}
+
+	for (selector, diagnostic) in [
+		(
+			"SettingsTexts",
+			"expected a qualified generated catalog path",
+		),
+		("Interface,", "expected a qualified generated catalog path"),
+		(
+			"crate::SettingsTexts",
+			"unsupported catalog name `SettingsTexts`",
+		),
+		("crate::Interface", "unsupported catalog name `Interface`"),
+		("std::string::String", "unsupported catalog name `String`"),
+		("texts::ui::Missing", "unsupported catalog name `Missing`"),
+		(
+			"texts::ui::Detail",
+			"Use a generated catalog name in this namespace: Main, Options, Type",
+		),
+		(
+			"\"ui/options.ftl\"",
+			"Strings, generic arguments and arbitrary expressions",
+		),
+		(
+			"texts::ui::Options::<()>",
+			"Strings, generic arguments and arbitrary expressions",
+		),
+		(
+			"{ texts::ui::Options }",
+			"Strings, generic arguments and arbitrary expressions",
+		),
+		("", "expected a qualified generated catalog path"),
+	] {
+		let expression = format!("texts::embed_manifest!(module = {selector})");
+		assert_rejected(&fixture, &schema, &expression, diagnostic);
+
+		if !selector.is_empty() {
+			let expression = format!("texts::embed_manifest!({selector})");
+			assert_rejected(&fixture, &schema, &expression, diagnostic);
+		}
+	}
+
+	assert_rejected(
+		&fixture,
+		&schema,
+		"texts::ui::Options!(@manifest)",
+		"could not find `Options` in `ui`",
+	);
+	assert_rejected(
+		&fixture,
+		&schema,
+		"SettingsTexts!(@manifest)",
+		"cannot find macro `SettingsTexts`",
+	);
+
+	// A re-export retaining a known name still has no generated namespace dispatcher.
+	// Rust diagnoses that path; it must never choose another namespace's recipe.
+	let forwarded = format!("{schema}\nmod forwarded {{ pub use crate::texts::ui::Options; }}");
+	assert_rejected(
+		&fixture,
+		&forwarded,
+		"texts::embed_manifest!(forwarded::Options)",
+		"could not find `__embed_scope` in `forwarded`",
+	);
+}
+
+fn assert_rejected(fixture: &Fixture, schema: &str, expression: &str, diagnostic: &str) {
+	fixture.write(
+		"src/main.rs",
+		&format!("{schema}\nfn main() {{ let _ = {expression}; }}\n"),
+	);
+	let output = cargo(fixture, "check");
+	let stderr = String::from_utf8_lossy(&output.stderr);
+	assert!(
+		!output.status.success(),
+		"unexpectedly accepted: {expression}"
+	);
+	assert!(stderr.contains(diagnostic), "{expression}: {stderr}");
+	assert!(!stderr.contains("couldn't read"), "{expression}: {stderr}");
 }
 
 fn build_and_inspect(fixture: &Fixture, schema: &str, body: &str, selected: &[&str]) {

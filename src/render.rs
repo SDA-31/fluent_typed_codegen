@@ -282,10 +282,8 @@ fn render_node(
 		None => syn::Item::Struct(declaration),
 	};
 
-	let embedding = embedded.scope(node);
 	let declarations = quote! {
 		#declaration
-		#embedding
 
 		impl #ty {
 			#(#accessors)*
@@ -349,8 +347,11 @@ fn render_node(
 		.values()
 		.map(|child| render_node(child, false, message_types, schemas, embedded, extension));
 
+	let embedding = embedded.namespace(node);
+
 	if root {
 		return quote! {
+			#embedding
 			#declarations
 			#(#children)*
 		};
@@ -368,6 +369,7 @@ fn render_node(
 		pub mod #name {
 			use super::{fluent_typed, Locale, LoadError, LocalizationManifest, __validation, __fluent_codegen};
 			#(#imports)*
+			#embedding
 			#(#children)*
 		}
 	}

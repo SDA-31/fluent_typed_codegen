@@ -106,7 +106,10 @@
 //! Without that macro invocation, generated APIs contain no FTL payload.
 //! The embedded macro is crate-local; `module = texts::ui::Menu` selects one leaf,
 //! and `module = texts::Ui` includes the group's descendants, in every language.
-//! Use a generated type path or a `use` alias, not a `type` alias or generic parameter.
+//! The short form `texts::embed_manifest!(texts::ui::Menu)` is also supported.
+//! Use a qualified generated type path; aliases of parent modules work, but imported
+//! type names, renamed type paths and generic parameters are not embedded selectors.
+//! Ordinary catalog imports and aliases remain unrestricted.
 //! Unselected FTL is not included even in unoptimized builds without LTO or stripping.
 //! See the [complete loading recipes](https://github.com/SDA-31/fluent_typed_codegen/blob/main/docs/loading.md)
 //! for bytes, files, embedding, all languages and explicit module lifetimes.
