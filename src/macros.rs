@@ -19,7 +19,11 @@
 /// the module, imports the Fluent libraries and includes Cargo output; it neither
 /// generates sources nor loads catalogs. Explicit low-level
 /// inclusion remains supported for custom dependency aliases or frontend layouts.
-/// For selective embedding, call
+/// Named manifests can be declared with a selector relative to this tree:
+/// `texts::embed_manifest! { pub const HUD = presentation::Hud; }`.
+/// The constant has type [`crate::LocalizationManifest`] and can be exported
+/// independently of the generated module. Ordinary catalog aliases remain usable.
+/// For expression-based selective embedding, call
 /// `texts::embed_manifest!(module = texts::presentation::Hud)` with a generated
 /// leaf or group type. The shorter `texts::embed_manifest!(texts::presentation::Hud)`
 /// form is also accepted. Imported type names and renamed type paths are not
@@ -51,8 +55,15 @@ macro_rules! translations {
 // Rustfmt repeatedly indents the nested dollar-token matcher on every pass.
 #[rustfmt::skip]
 macro_rules! __define_embed_manifest {
-	($recipe:expr; [$($known:ident),*]; $dollar:tt) => {
+	($recipe:expr; [$($known:ident),*]; $selectors:tt; $recipes:tt; $dollar:tt) => {
 		/// Explicitly include build-time FTL in the calling crate.
+		///
+		/// Declare named manifests with relative selectors:
+		/// `embed_manifest! { pub const HUD = presentation::Hud; }`.
+		/// Each constant is a `LocalizationManifest`; visibility, attributes and
+		/// multiple declarations are supported. Selectors belong to this generated
+		/// tree, independently of application imports. `Translations` selects its root.
+		/// A declaration embeds source bytes, without parsing a Fluent catalog.
 		///
 		/// `embed_manifest!()` includes all modules in all discovered languages.
 		/// `embed_manifest!(texts::presentation::Hud)` selects a generated type path.
@@ -64,6 +75,21 @@ macro_rules! __define_embed_manifest {
 		/// Available only within the crate declaring `translations!`.
 		#[allow(unused_macros)]
 		macro_rules! __embed_manifest {
+			($dollar(
+				$dollar(#[$dollar attribute:meta])*
+				$dollar visibility:vis const $dollar name:ident = $dollar($dollar scope:ident)::+;
+			)+) => {
+				$dollar(
+					$crate::__declare_embedded!(
+						$selectors; $recipes;
+						$dollar(#[$dollar attribute])*
+						$dollar visibility const $dollar name = $dollar($dollar scope)::+;
+					);
+				)+
+			};
+			($dollar(#[$dollar attribute:meta])* $dollar visibility:vis const $dollar($dollar invalid:tt)*) => {
+				::core::compile_error!("embed_manifest!: expected `pub const NAME = relative::Scope;`. Use a catalog selector relative to this translation tree, without strings, generic arguments or a leading `::`.");
+			};
 			() => {
 				$crate::LocalizationManifest::__embedded($recipe)
 			};
@@ -77,6 +103,53 @@ macro_rules! __define_embed_manifest {
 
 		#[allow(unused_imports)]
 		pub(crate) use __embed_manifest as embed_manifest;
+	};
+}
+
+/// Declare one const manifest, keeping unselected include expressions in macro arms.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __declare_embedded {
+	(
+		$selectors:tt;
+		{ $(($($known:ident)::+) => $recipe:expr,)* };
+		$(#[$attribute:meta])* $visibility:vis const $name:ident = $($scope:ident)::+;
+	) => {
+		$(#[$attribute])*
+		$visibility const $name: $crate::LocalizationManifest = {
+			// Qualifying through this local namespace keeps completion and resolution
+			// inside the generated schema even when the application shadows its names.
+			#[allow(dead_code)]
+			mod __fluent_selectors $selectors
+
+			let _: ::core::marker::PhantomData<__fluent_selectors::$($scope)::+> = ::core::marker::PhantomData;
+
+			macro_rules! __fluent_recipe {
+				$(($($known)::+) => { $recipe };)*
+				($($scope)::+) => {
+					::core::compile_error!(::core::concat!(
+						"embed_manifest!: unknown relative catalog selector `", ::core::stringify!($($scope)::+),
+						"`. Use a selector from this translation tree, for example presentation::Hud, or Translations for the complete tree."
+					))
+				};
+			}
+
+			// Discovery orders unique entries by locale and then logical module path;
+			// filtering a scope preserves that order for allocation-free binary lookup.
+			const RECIPE: (
+				&str, &str, &str,
+				&[(&str, &str, &[u8])],
+			) = __fluent_recipe!($($scope)::+);
+			static CONFIG: ::std::sync::LazyLock<$crate::CatalogConfig> = ::std::sync::LazyLock::new(|| {
+				$crate::CatalogConfig {
+					source_language: RECIPE.0.into(),
+					default_language: RECIPE.1.into(),
+					languages_directory: RECIPE.2.into(),
+				}
+			});
+
+			$crate::LocalizationManifest::__embedded_static(RECIPE.3, &CONFIG)
+		};
 	};
 }
 

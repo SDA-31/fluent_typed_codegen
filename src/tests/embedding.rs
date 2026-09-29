@@ -69,7 +69,17 @@ extern crate self as application;
 		fs::remove_file(path).unwrap();
 	}
 
-	build_and_inspect(&fixture, &schema, "", &[]);
+	build_and_inspect(
+		&fixture,
+		&schema,
+		r#"
+    texts::embed_manifest! {
+        #[cfg(any())]
+        pub const DISABLED = ui::Options;
+    }
+"#,
+		&[],
+	);
 
 	for (path, module, source) in &originals {
 		if *module == "ui/options.ftl" {
@@ -85,11 +95,22 @@ extern crate self as application;
     let short = texts::embed_manifest!(texts::ui::Options,);
     let absolute = texts::embed_manifest!(::application::texts::ui::Options);
     let relative = texts::embed_manifest!(self::texts::ui::Options);
+    texts::embed_manifest! {
+        /// Only the options leaf, with visibility controlled by its owner.
+        pub(crate) const OPTIONS = ui::Options;
+        const AGAIN = ui::Options;
+    }
+    let selected: l10n::LocalizationManifest = OPTIONS;
+    assert_eq!(selected.embedded_modules(), direct.embedded_modules());
+    assert_eq!(AGAIN.embedded_modules(), selected.embedded_modules());
+    assert_eq!(selected.config().default_language, "pt-BR");
     assert_eq!(direct.embedded_modules(), short.embedded_modules());
     assert_eq!(direct.embedded_modules(), absolute.embedded_modules());
     assert_eq!(direct.embedded_modules(), relative.embedded_modules());
     let catalog: Interface = SettingsTexts::from_manifest(texts::Locale::De, &direct).unwrap();
     assert!(catalog.msg_title().contains("FTL_OPTIONS_SENTINEL_813627"));
+    let from_const = Interface::from_manifest(texts::Locale::De, &OPTIONS).unwrap();
+    assert_eq!(from_const.msg_title(), catalog.msg_title());
     mod consumer {
         pub fn selected() -> l10n::LocalizationManifest {
             super::texts::embed_manifest!(super::texts::ui::Options)
@@ -101,6 +122,41 @@ extern crate self as application;
         assert_eq!(*path, "ui/options.ftl");
         println!("{locale} {path} {}", std::str::from_utf8(bytes).unwrap());
     }
+"#,
+		&["ui/options.ftl"],
+	);
+
+	// The declaration does not depend on the names visible at its call site. Its
+	// owning module can keep the whole generated tree private and export only its API.
+	let encapsulated = format!(
+		r#"#![deny(warnings)]
+mod localization {{
+    #[allow(dead_code, clippy::derivable_impls, clippy::too_many_arguments)]
+    mod texts {{
+        use l10n as __fluent_codegen;
+        use fluent_typed;
+        use fluent_syntax;
+        include!({generated:?});
+    }}
+    pub use texts::ui::Options as Interface;
+    pub use texts::Locale;
+    pub(crate) use texts::embed_manifest as embed;
+    #[allow(dead_code)]
+    mod ui {{ pub struct Options; }}
+    texts::embed_manifest! {{ pub const HUD = ui::Options; }}
+}}
+use localization::{{HUD as SOURCE, Interface, Locale}};
+localization::embed! {{ const REEXPORTED = ui::Options; }}
+"#
+	);
+	build_and_inspect(
+		&fixture,
+		&encapsulated,
+		r#"
+    let source: l10n::LocalizationManifest = SOURCE;
+    assert_eq!(source.embedded_modules(), REEXPORTED.embedded_modules());
+    let catalog = Interface::from_manifest(Locale::De, &source).unwrap();
+    println!("{}", catalog.msg_title());
 "#,
 		&["ui/options.ftl"],
 	);
@@ -139,6 +195,12 @@ extern crate self as application;
     let group = texts::embed_manifest!(module = crate::texts::Ui);
     let leaf = texts::embed_manifest!(module = nested::Detail);
     let raw_path = texts::embed_manifest!(texts::ui::r#type::Detail);
+    texts::embed_manifest! {
+        const GROUP = Ui;
+        const NESTED = ui::r#type::Detail;
+    }
+    assert_eq!(GROUP.embedded_modules(), group.embedded_modules());
+    assert_eq!(NESTED.embedded_modules(), leaf.embedded_modules());
     assert_eq!(leaf.embedded_modules(), raw_path.embedded_modules());
     assert_eq!(leaf.embedded_modules().unwrap().len(), 3);
     assert_eq!(group.embedded_modules().unwrap().len(), 9);
@@ -160,6 +222,8 @@ extern crate self as application;
 		r#"
     let explicit = texts::embed_manifest!(module = texts::Translations);
     let complete = texts::embed_manifest!();
+    texts::embed_manifest! { const ALL = Translations; }
+    assert_eq!(ALL.embedded_modules(), complete.embedded_modules());
     assert_eq!(explicit.embedded_modules(), complete.embedded_modules());
     assert_eq!(complete.embedded_modules().unwrap().len(), 12);
     for (locale, path, bytes) in complete.embedded_modules().unwrap() {
@@ -217,6 +281,34 @@ extern crate self as application;
 			let expression = format!("texts::embed_manifest!({selector})");
 			assert_rejected(&fixture, &schema, &expression, diagnostic);
 		}
+	}
+
+	for (selector, diagnostic) in [
+		("texts::ui::Options", "unknown relative catalog selector"),
+		(
+			"crate::texts::ui::Options",
+			"unknown relative catalog selector",
+		),
+		("SettingsTexts", "unknown relative catalog selector"),
+		("Interface", "unknown relative catalog selector"),
+		("ui::Missing", "unknown relative catalog selector"),
+		("std::string::String", "unknown relative catalog selector"),
+		(
+			"\"ui/options.ftl\"",
+			"expected `pub const NAME = relative::Scope;`",
+		),
+		(
+			"ui::Options::<()>",
+			"expected `pub const NAME = relative::Scope;`",
+		),
+		(
+			"::ui::Options",
+			"expected `pub const NAME = relative::Scope;`",
+		),
+	] {
+		let expression =
+			format!("{{ texts::embed_manifest! {{ pub const SELECTED = {selector}; }} SELECTED }}");
+		assert_rejected(&fixture, &schema, &expression, diagnostic);
 	}
 
 	assert_rejected(

@@ -111,6 +111,28 @@
 //! type names, renamed type paths and generic parameters are not embedded selectors.
 //! Ordinary catalog imports and aliases remain unrestricted.
 //! Unselected FTL is not included even in unoptimized builds without LTO or stripping.
+//!
+//! Named embedded manifests use selectors relative to this translation tree:
+//!
+//! ```ignore
+//! texts::embed_manifest! {
+//!     pub const MENU = ui::Menu;
+//!     const COMPLETE = Translations;
+//! }
+//!
+//! use texts::ui::Menu as Interface;
+//! let menu: Interface = Interface::from_manifest(texts::Locale::En, &MENU)?;
+//! ```
+//!
+//! These constants have type [`LocalizationManifest`]. They contain source bytes,
+//! not parsed catalogs. A private localization module can export its constants and
+//! catalog aliases without exposing its generated tree. Selectors are generated
+//! schema paths, independent of application imports; strings and type aliases are
+//! rejected as selectors. Attributes such as `#[cfg(...)]` apply to each declaration.
+//! Reading bytes borrows the selected static data; [`LocalizationManifest::config`]
+//! initializes shared metadata on first access. Bind `let manifest = &MENU;` before
+//! retaining a borrow of that metadata. Fluent parsing happens in `from_manifest`.
+//!
 //! See the [complete loading recipes](https://github.com/SDA-31/fluent_typed_codegen/blob/main/docs/loading.md)
 //! for bytes, files, embedding, all languages and explicit module lifetimes.
 //!

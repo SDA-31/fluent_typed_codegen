@@ -5,7 +5,7 @@ use std::{
 	collections::HashMap,
 	fmt, fs, io,
 	path::{Path, PathBuf},
-	sync::{Arc, OnceLock},
+	sync::{Arc, LazyLock, OnceLock},
 };
 
 type EmbeddedModules = &'static [(&'static str, &'static str, &'static [u8])];
@@ -30,6 +30,10 @@ enum Source {
 		config: CatalogConfig,
 		modules: EmbeddedModules,
 		index: Arc<OnceLock<EmbeddedIndex>>,
+	},
+	StaticEmbedded {
+		config: &'static LazyLock<CatalogConfig>,
+		modules: EmbeddedModules,
 	},
 }
 
@@ -129,7 +133,9 @@ impl LocalizationManifest {
 	/// Explicitly embedded entries, for inspection or host-owned loading.
 	pub fn embedded_modules(&self) -> Option<EmbeddedModules> {
 		match &self.source {
-			Source::Embedded { modules, .. } => Some(*modules),
+			Source::Embedded { modules, .. } | Source::StaticEmbedded { modules, .. } => {
+				Some(*modules)
+			}
 			_ => None,
 		}
 	}
@@ -138,6 +144,7 @@ impl LocalizationManifest {
 	pub fn config(&self) -> &CatalogConfig {
 		match &self.source {
 			Source::File { config, .. } | Source::Embedded { config, .. } => config,
+			Source::StaticEmbedded { config, .. } => config,
 		}
 	}
 
@@ -145,8 +152,10 @@ impl LocalizationManifest {
 	///
 	/// File data is owned; embedded data is borrowed. Locale and module are logical
 	/// paths, not storage addresses. Engine integrations should use their own I/O.
-	/// The first embedded read indexes entry metadata; clones share that index.
-	/// Building it does not copy or parse the embedded FTL payloads.
+	/// Generated embedded constants use sorted static entries directly, without
+	/// allocating an index. Their configuration is initialized once on `config()`.
+	/// Expression-based embedding indexes entry metadata on its first read; clones
+	/// share that index. Neither path copies or parses the embedded FTL payloads.
 	///
 	/// # Errors
 	/// Rejects invalid paths, missing embedded entries and I/O failures.
@@ -197,6 +206,13 @@ impl LocalizationManifest {
 					locale: locale.into(),
 					path: path.into(),
 				}),
+			Source::StaticEmbedded { modules, .. } => modules
+				.binary_search_by(|&(language, module, _)| (language, module).cmp(&(locale, path)))
+				.map(|index| Cow::Borrowed(modules[index].2))
+				.map_err(|_| ManifestError::MissingModule {
+					locale: locale.into(),
+					path: path.into(),
+				}),
 		}
 	}
 
@@ -231,6 +247,18 @@ impl LocalizationManifest {
 				modules,
 				index: Arc::new(OnceLock::new()),
 			},
+		}
+	}
+
+	/// Construct a generated constant from unique entries sorted by locale and path.
+	/// Configuration metadata is shared across uses; no runtime lookup index is kept.
+	#[doc(hidden)]
+	pub const fn __embedded_static(
+		modules: EmbeddedModules,
+		config: &'static LazyLock<CatalogConfig>,
+	) -> Self {
+		Self {
+			source: Source::StaticEmbedded { config, modules },
 		}
 	}
 }

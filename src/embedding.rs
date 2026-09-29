@@ -53,6 +53,26 @@ impl<'a> Recipes<'a> {
 		quote!((#source_language, #default_language, #directory, &[#(#entries,)*]))
 	}
 
+	fn declaration_recipes(&self, node: &Node, namespace: &TokenStream) -> TokenStream {
+		let ty = format_ident!("{}", node.ty);
+		let recipe = self.recipe(node);
+		let child_namespace = if node.path.is_empty() {
+			namespace.clone()
+		} else {
+			let name = format_ident!("{}", node.name);
+			quote!(#namespace #name ::)
+		};
+		let children = node
+			.children
+			.values()
+			.map(|child| self.declaration_recipes(child, &child_namespace));
+
+		quote! {
+			(#namespace #ty) => #recipe,
+			#(#children)*
+		}
+	}
+
 	/// One implementation dispatcher for the types declared in this Rust module.
 	pub fn namespace(&self, node: &Node) -> TokenStream {
 		let root = node.path.is_empty();
@@ -76,12 +96,16 @@ impl<'a> Recipes<'a> {
 		);
 		let manifest = root.then(|| {
 			let recipe = self.recipe(node);
+			let selectors = selector_items(node);
+			let declarations = self.declaration_recipes(node, &TokenStream::new());
 			let mut known = BTreeSet::new();
 			collect_type_names(node, &mut known);
 			let known = known.into_iter().map(|name| format_ident!("{name}"));
 
 			quote! {
-				__fluent_codegen::__define_embed_manifest!(#recipe; [#(#known),*]; $);
+				__fluent_codegen::__define_embed_manifest!(
+					#recipe; [#(#known),*]; { #selectors }; { #declarations }; $
+				);
 			}
 		});
 
@@ -89,6 +113,36 @@ impl<'a> Recipes<'a> {
 			__fluent_codegen::__define_embed_scopes!(#(#names => #recipes,)*; #diagnostic; $);
 			#manifest
 		}
+	}
+}
+
+/// A scope-only namespace local to each declaration, independent of application imports.
+fn selector_items(node: &Node) -> TokenStream {
+	let ty = format_ident!("{}", node.ty);
+	let description = if node.path.is_empty() {
+		"Select all translation modules in all discovered languages.".into()
+	} else if node.leaf.is_some() {
+		format!("Select `{}.ftl` in all discovered languages.", node.path)
+	} else {
+		format!(
+			"Select every module below `{}/` in all discovered languages.",
+			node.path
+		)
+	};
+	let children = node.children.values().map(selector_items);
+	let nested = if node.path.is_empty() {
+		quote!(#(#children)*)
+	} else if node.leaf.is_none() {
+		let name = format_ident!("{}", node.name);
+		quote!(pub mod #name { #(#children)* })
+	} else {
+		TokenStream::new()
+	};
+
+	quote! {
+		#[doc = #description]
+		pub struct #ty;
+		#nested
 	}
 }
 

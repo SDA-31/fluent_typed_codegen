@@ -2,6 +2,80 @@ use crate::{CatalogConfig, LocalizationManifest, ManifestError};
 use std::{borrow::Cow, path::Path};
 
 #[test]
+fn constant_manifest_shares_metadata_and_borrows_sorted_entries_without_an_index() {
+	use std::sync::{
+		LazyLock,
+		atomic::{AtomicUsize, Ordering},
+	};
+
+	static INITIALIZATIONS: AtomicUsize = AtomicUsize::new(0);
+	static FIRST: &[u8] = b"title = First\n";
+	static LAST: &[u8] = b"title = Last\n";
+	static CONFIG: LazyLock<CatalogConfig> = LazyLock::new(|| {
+		INITIALIZATIONS.fetch_add(1, Ordering::Relaxed);
+		CatalogConfig {
+			languages_directory: "translations".into(),
+			source_language: "en".into(),
+			default_language: "fr".into(),
+		}
+	});
+	static MODULES: [(&str, &str, &[u8]); 3] = [
+		("en", "a.ftl", FIRST),
+		("en", "z.ftl", b"title = Middle\n"),
+		("fr", "z.ftl", LAST),
+	];
+	const MANIFEST: LocalizationManifest =
+		LocalizationManifest::__embedded_static(&MODULES, &CONFIG);
+	let manifest = MANIFEST;
+	let cloned = manifest.clone();
+	assert!(manifest.file_path().is_none());
+	assert_eq!(manifest.embedded_modules().unwrap().len(), 3);
+	assert!(matches!(
+		manifest.read("en", "a.ftl").unwrap(),
+		Cow::Borrowed(bytes) if std::ptr::eq(bytes, FIRST)
+	));
+	assert!(std::ptr::eq(
+		manifest.read("fr", "z.ftl").unwrap().as_ref(),
+		LAST
+	));
+	let requested = cloned
+		.read_modules("en", &["z.ftl", "a.ftl", "z.ftl"])
+		.unwrap();
+	assert_eq!(
+		requested
+			.iter()
+			.map(|(path, _)| path.as_str())
+			.collect::<Vec<_>>(),
+		["z.ftl", "a.ftl", "z.ftl"]
+	);
+
+	for (locale, path) in [("de", "a.ftl"), ("en", "b.ftl"), ("fr", "a.ftl")] {
+		assert!(matches!(
+			manifest.read(locale, path),
+			Err(ManifestError::MissingModule { .. })
+		));
+	}
+
+	assert_eq!(INITIALIZATIONS.load(Ordering::Relaxed), 0);
+	std::thread::scope(|threads| {
+		for _ in 0..4 {
+			threads.spawn(|| {
+				let manifest = MANIFEST;
+				assert_eq!(manifest.config().default_language, "fr");
+			});
+		}
+	});
+
+	assert_eq!(INITIALIZATIONS.load(Ordering::Relaxed), 1);
+	assert!(std::ptr::eq(manifest.config(), cloned.config()));
+	assert_eq!(manifest.config().source_language, "en");
+	assert_eq!(
+		manifest.config().languages_directory,
+		Path::new("translations")
+	);
+}
+
+#[test]
 fn embedded_lookup_preserves_entry_and_request_order_without_copying_payloads() {
 	const FIRST: &[u8] = b"title = First\n";
 	let manifest = LocalizationManifest::__embedded((

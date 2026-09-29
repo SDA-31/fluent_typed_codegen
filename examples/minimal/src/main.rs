@@ -5,6 +5,12 @@ use icu_plurals::{PluralCategory, PluralRules};
 
 l10n::translations!(pub mod texts);
 
+// Explicitly embed the complete source set. Select a relative leaf or group here
+// instead of Translations when the application only needs part of the tree.
+texts::embed_manifest! {
+    const EMBEDDED = Translations;
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
 	let translations: texts::Translations = load(texts::Locale::En)?;
 	let presentation: &texts::Presentation = translations.presentation();
@@ -29,8 +35,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 // Embedding is an explicit application choice. Merely generating/accessing the
 // schema does not expand this recipe or include its FTL bytes.
 fn load(locale: texts::Locale) -> Result<texts::Translations, texts::LoadError> {
-	let manifest = texts::embed_manifest!();
-	texts::Translations::from_manifest(locale, &manifest)
+	texts::Translations::from_manifest(locale, &EMBEDDED)
 }
 
 /// Map ICU's category to a literal Fluent String selector; no plural rules live here.
