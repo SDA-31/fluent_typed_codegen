@@ -280,24 +280,27 @@ in `build.rs`. See the
 
 ```rust
 let complete = texts::embed_manifest!();
-let hud_only = texts::embed_manifest!(module = texts::presentation::Hud);
-let presentation = texts::embed_manifest!(module = texts::Presentation);
-let hud = texts::presentation::Hud::from_manifest(locale, &hud_only)?;
+texts::embed_manifest! {
+    pub const HUD = presentation::Hud;
+    const PRESENTATION = Presentation;
+}
+let hud = texts::presentation::Hud::from_manifest(locale, &HUD)?;
 ```
 
-Use the generated type's path, or a `use` import, including `use ... as ...`.
-The selector resolves both that type and its generated embedding macro; an
-arbitrary `type` alias or generic type parameter cannot select an embedding recipe.
+`embed_manifest!` accepts only an empty invocation or a block declaring constants
+of type `LocalizationManifest`. Selectors inside the block are paths relative to
+this generated tree, without `texts::`. Ordinary `use` imports and aliases remain
+available for catalog construction and resources; they do not change selectors.
 
 No expanded call means no FTL payload is included by this path, including in
 unoptimized debug builds; this does not depend on LTO or linker stripping. A macro in
 `if false` still expands. The no-argument form includes **all raw modules and all
 languages**; a leaf selector includes that leaf in every language, and a group
-includes its descendant leaves. `module = texts::Translations` selects the whole
-tree. Runtime construction decides what gets parsed, not what enters the
-binary. Static embedded bytes outlive dropped parsed catalogs. The generated
+includes its descendant leaves. `const ALL = Translations;` inside the block
+selects the whole tree. Runtime construction decides what gets parsed, not what
+enters the binary. Static embedded bytes outlive dropped parsed catalogs. The generated
 macro is crate-local, including inside a `pub mod texts`; a library can expose
-its own function that explicitly invokes it.
+its own manifest constant alongside catalog aliases.
 
 Upgrading from 0.1.4? Follow the [migration guide](docs/migration-0.2.md)
 for before/after constructors, error handling, metadata and manual includes.
@@ -443,7 +446,7 @@ implement a rendering engine.
 | Symptom | What to check |
 | --- | --- |
 | `Hud::new`, `from_manifest` or `embed_manifest!` is missing | Use version 0.2.1 from [Setup](#setup) in **both** Cargo sections. Published 0.1.4 uses the previous API. |
-| `embed_manifest!(module = texts::presentation::Hud)` is rejected | Use version 0.2.1 from [Setup](#setup) in both dependency sections. Pass a generated path or `use` alias, not a string or `type` alias. |
+| `embed_manifest!` rejects its input | Use an empty invocation for all sources or a declaration such as `pub const HUD = presentation::Hud;` for a subset. Selectors are relative schema paths, not application aliases. |
 | `translations!` cannot find `OUT_DIR` or `translations.rs` | Add the [build.rs](#2-run-generation-from-buildrs) beside the application's Cargo.toml and enable `build` on its build dependency. Resolve any earlier generation error first. |
 | `LocalizationManifest::from_file` or `parse` is missing | Enable `manifest` on the **normal** dependency, as in the [file recipe](docs/loading.md#read-files-through-a-manifest). A build dependency's features do not enable runtime APIs. |
 | Generated code cannot resolve `fluent_typed` or `fluent_syntax` | Keep `fluent-typed` and `fluent-syntax` under those canonical dependency names in the application's `[dependencies]`. |

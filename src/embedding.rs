@@ -2,7 +2,6 @@
 use crate::{discovery::CatalogSources, tree::Node};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use std::collections::BTreeSet;
 
 pub(super) struct Recipes<'a> {
 	sources: &'a CatalogSources,
@@ -73,45 +72,16 @@ impl<'a> Recipes<'a> {
 		}
 	}
 
-	/// One implementation dispatcher for the types declared in this Rust module.
-	pub fn namespace(&self, node: &Node) -> TokenStream {
-		let root = node.path.is_empty();
-		let scopes: Vec<_> = root
-			.then_some(node)
-			.into_iter()
-			.chain(node.children.values())
-			.collect();
-		let names: Vec<_> = scopes
-			.iter()
-			.map(|scope| format_ident!("{}", scope.ty))
-			.collect();
-		let recipes = scopes.iter().map(|scope| self.recipe(scope));
-		let choices = scopes
-			.iter()
-			.map(|scope| scope.ty.as_str())
-			.collect::<Vec<_>>()
-			.join(", ");
-		let diagnostic = format!(
-			"Use a generated catalog name in this namespace: {choices}. Imported type names and renamed type paths are not supported as embedded selectors."
-		);
-		let manifest = root.then(|| {
-			let recipe = self.recipe(node);
-			let selectors = selector_items(node);
-			let declarations = self.declaration_recipes(node, &TokenStream::new());
-			let mut known = BTreeSet::new();
-			collect_type_names(node, &mut known);
-			let known = known.into_iter().map(|name| format_ident!("{name}"));
-
-			quote! {
-				__fluent_codegen::__define_embed_manifest!(
-					#recipe; [#(#known),*]; { #selectors }; { #declarations }; $
-				);
-			}
-		});
+	/// One deferred manifest declaration macro for the complete translation tree.
+	pub fn manifest(&self, root: &Node) -> TokenStream {
+		let recipe = self.recipe(root);
+		let selectors = selector_items(root);
+		let declarations = self.declaration_recipes(root, &TokenStream::new());
 
 		quote! {
-			__fluent_codegen::__define_embed_scopes!(#(#names => #recipes,)*; #diagnostic; $);
-			#manifest
+			__fluent_codegen::__define_embed_manifest!(
+				#recipe; { #selectors }; { #declarations }; $
+			);
 		}
 	}
 }
@@ -143,13 +113,5 @@ fn selector_items(node: &Node) -> TokenStream {
 		#[doc = #description]
 		pub struct #ty;
 		#nested
-	}
-}
-
-fn collect_type_names<'a>(node: &'a Node, names: &mut BTreeSet<&'a str>) {
-	names.insert(&node.ty);
-
-	for child in node.children.values() {
-		collect_type_names(child, names);
 	}
 }

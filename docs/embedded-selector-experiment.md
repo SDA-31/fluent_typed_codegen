@@ -2,8 +2,8 @@
 
 Local work on `feat/embedded-selector-diagnostics`, based on `c629a53`, dated
 2026-09-29. This is a maintainer handoff, not a release guide. The package version
-and README remain unchanged. No push, tag, publication or CI run is part of this
-experiment; the game and its submodule gitlinks are outside its scope.
+remains unchanged; embedding documentation follows the implemented contract.
+No push, tag, publication or CI run is part of this experiment; the game and its submodule gitlinks are outside its scope.
 
 ## Implemented API
 
@@ -34,12 +34,10 @@ paths are rejected with selector diagnostics. This is schema selection, not
 reflection over Rust type identity. Ordinary catalog imports, type aliases and
 `Res<Interface>` remain usable.
 
-The original expression forms remain available in this branch:
-`embed_manifest!()`, `embed_manifest!(module = texts::presentation::Hud)` and the
-shorter qualified-path form. Their qualification rules are unchanged from the
-preceding branch checkpoint: parent-module aliases work; imported or renamed
-catalog type names do not. New encapsulated APIs should export the constant.
-The removed `Hud!` companion macro is not restored.
+Only two input forms are accepted: `embed_manifest!()` for the complete source
+set and `embed_manifest! { ... }` for named constants. Old selector arguments,
+including `module = ...` and bare qualified paths, produce a diagnostic pointing
+to those two forms. There is no legacy selector dispatch or `Hud!` companion macro.
 
 ## Representation and lifetime
 
@@ -85,10 +83,9 @@ A separate rust-analyzer 0.3.3041 instance inspected real generated output:
   did not improve this. No editor extension is included.
 
 Go-to-definition for declaration selectors targets generated scope markers, not
-the catalog implementation. The existing expression form still uses actual type
-paths. Internal helper names may appear if their prefix is explicitly entered;
-macro hover can show the internal definition name. Only the confusing type-named
-companion macros have been removed.
+the catalog implementation. Macro hover can show the internal definition name.
+The earlier per-namespace dispatchers and qualified-selector helpers are removed;
+hover documents only the empty call and constant declarations.
 
 ## Verification
 
@@ -104,14 +101,15 @@ binary and output sentinels. Coverage includes:
   macros, and conflicting names in application scope.
 - Invalid selectors with every source FTL absent, plus rejection of type-named
   macro calls under their original and imported names.
-- Both existing expression forms and duplicate leaf type names in different
-  namespaces.
+- Empty invocation versus root-constant parity, duplicate leaf type names in
+  different namespaces, and rejection of removed selector-argument calls before
+  file access. Generated output contains no old namespace dispatchers.
 
 Manifest tests cover first/last/missing static entries, borrowed payload pointers,
 request ordering, lazy metadata initialization across threads and clones, and
 unchanged dynamic embedded behavior. The engine-free example uses a root constant.
 
-Completed checks:
+Checks at the original constant-implementation checkpoint:
 
 - `cargo test --offline -- --test-threads=1`: 43 library tests and six active
   doctests passed; four illustrative doctests remain ignored.
@@ -141,12 +139,38 @@ verification artifacts, not package files.
 
 ## Integration boundary
 
-This is not yet a release migration. Removing imported type aliases as embedded
-selectors is incompatible with the published API; exporting an ordinary named
-manifest supplies the encapsulation path. Runtime code does not need modification
-for const manifests, but its published documentation and the existing
-`typed_embedding_resolves_nested_modules_and_import_aliases` example test still
-expect the earlier selector contract. Migrate those call sites, versioned guides
-and release notes together if this experiment is adopted. README changes are
-intentionally deferred. Keep build and runtime generator versions aligned: the
-new generated recipes require the matching macro implementation.
+This is not yet a release migration. Selector arguments have been intentionally
+removed; consumers replace them with manifest constant declarations. The Bevy
+companion branch `feat/embedded-manifest-constants` updates its tests, examples and
+documentation to this same two-form contract. Runtime loading needs no adapter
+changes. Keep build and runtime generator dependencies aligned: the generated
+recipes require the matching macro implementation.
+
+Package versions are unchanged for local development. Before release, select a
+new generator version, update the Bevy dependency minimum, and verify the supported
+compiler/backend matrix and registry-only consumers. No release is authorized here.
+
+## Two-form API follow-up verification
+
+The selector-removal follow-up passed 140 tests across the generator, runtime and
+five example packages (45 generator, 11 engine-free, 84 Bevy/runtime examples),
+plus ten active doctests. Tests ran offline and locked with two compilation jobs,
+serial test execution and the workspace development optimization levels overridden
+to zero. The permanent debug-binary inclusion regression passed with deleted
+unselected FTL, including rejection of all removed argument forms before file IO.
+
+The standalone rust-analyzer probe used freshly generated output from the normal
+checkout. Hover assertions reject both `module =` and qualified expression
+examples; relative selector completion and alias diagnostics passed again.
+The empty-position completion limitation remains unchanged.
+
+Independent read-only review covered both corrective diffs against their previous
+checkpoints, the surrounding implementations, tests and documentation: **No
+findings**. The reviewer did not edit files or repeat compiler/editor checks.
+
+Clippy passed for all targets of the same seven packages with `-D warnings`.
+Rustdoc passed for both libraries with warnings denied and the runtime's
+`codegen,build` features enabled. Formatting and `git diff --check` passed;
+README and packaged Rustdoc describe the same two-form API. The supported
+compiler/backend matrix and registry-only release checks remain outside this
+local correction.

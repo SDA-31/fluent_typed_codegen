@@ -31,7 +31,7 @@ l10n = { package = "fluent_typed_codegen", path = "../..", default-features = fa
 ```
 
 The build script returns `l10n::build()`. Application code declares
-`l10n::translations!(pub mod texts);`, explicitly invokes `texts::embed_manifest!()`,
+`l10n::translations!(pub mod texts);`, declares `EMBEDDED` with `texts::embed_manifest!`,
 and constructs a checked language with `Translations::from_manifest`. It then
 borrows named translation scopes.
 There is no handwritten OUT_DIR path in the consumer. The macro-only normal

@@ -28,6 +28,15 @@ fn typed_embedding_keeps_unselected_payloads_out_of_unoptimized_binaries() {
 	let output = fixture.0.join("generated");
 	generate(&fixture.0, &output, &settings).unwrap();
 	let generated = output.join("translations.rs");
+	let generated_source = fs::read_to_string(&generated).unwrap();
+
+	for removed_helper in ["__define_embed_scopes", "__embed_scope", "__embed_selected"] {
+		assert!(
+			!generated_source.contains(removed_helper),
+			"{removed_helper}"
+		);
+	}
+
 	let generator = env!("CARGO_MANIFEST_DIR").replace('\\', "/");
 	fixture.write(
 		"Cargo.toml",
@@ -60,7 +69,6 @@ mod texts {{
 }}
 pub use texts::ui::Options as SettingsTexts;
 pub type Interface = SettingsTexts;
-extern crate self as application;
 "#
 	);
 
@@ -91,34 +99,27 @@ extern crate self as application;
 		&fixture,
 		&schema,
 		r#"
-    let direct = texts::embed_manifest!(module = texts::ui::Options);
-    let short = texts::embed_manifest!(texts::ui::Options,);
-    let absolute = texts::embed_manifest!(::application::texts::ui::Options);
-    let relative = texts::embed_manifest!(self::texts::ui::Options);
     texts::embed_manifest! {
         /// Only the options leaf, with visibility controlled by its owner.
         pub(crate) const OPTIONS = ui::Options;
         const AGAIN = ui::Options;
     }
     let selected: l10n::LocalizationManifest = OPTIONS;
-    assert_eq!(selected.embedded_modules(), direct.embedded_modules());
     assert_eq!(AGAIN.embedded_modules(), selected.embedded_modules());
     assert_eq!(selected.config().default_language, "pt-BR");
-    assert_eq!(direct.embedded_modules(), short.embedded_modules());
-    assert_eq!(direct.embedded_modules(), absolute.embedded_modules());
-    assert_eq!(direct.embedded_modules(), relative.embedded_modules());
-    let catalog: Interface = SettingsTexts::from_manifest(texts::Locale::De, &direct).unwrap();
+    let catalog: Interface = SettingsTexts::from_manifest(texts::Locale::De, &selected).unwrap();
     assert!(catalog.msg_title().contains("FTL_OPTIONS_SENTINEL_813627"));
     let from_const = Interface::from_manifest(texts::Locale::De, &OPTIONS).unwrap();
     assert_eq!(from_const.msg_title(), catalog.msg_title());
     mod consumer {
         pub fn selected() -> l10n::LocalizationManifest {
-            super::texts::embed_manifest!(super::texts::ui::Options)
+            super::texts::embed_manifest! { const SOURCE = ui::Options; }
+            SOURCE
         }
     }
-    assert_eq!(direct.embedded_modules(), consumer::selected().embedded_modules());
-    assert_eq!(direct.embedded_modules().unwrap().len(), 3);
-    for (locale, path, bytes) in direct.embedded_modules().unwrap() {
+    assert_eq!(selected.embedded_modules(), consumer::selected().embedded_modules());
+    assert_eq!(selected.embedded_modules().unwrap().len(), 3);
+    for (locale, path, bytes) in selected.embedded_modules().unwrap() {
         assert_eq!(*path, "ui/options.ftl");
         println!("{locale} {path} {}", std::str::from_utf8(bytes).unwrap());
     }
@@ -172,7 +173,8 @@ localization::embed! {{ const REEXPORTED = ui::Options; }}
 		&fixture,
 		&schema,
 		r#"
-    let manifest = texts::embed_manifest!(texts::ui::Main);
+    texts::embed_manifest! { const MAIN = ui::Main; }
+    let manifest = MAIN;
     for (_, path, bytes) in manifest.embedded_modules().unwrap() {
         assert_eq!(*path, "ui/main.ftl");
         println!("{}", std::str::from_utf8(bytes).unwrap());
@@ -191,17 +193,12 @@ localization::embed! {{ const REEXPORTED = ui::Options; }}
 		&fixture,
 		&schema,
 		r#"
-    use texts::ui::r#type as nested;
-    let group = texts::embed_manifest!(module = crate::texts::Ui);
-    let leaf = texts::embed_manifest!(module = nested::Detail);
-    let raw_path = texts::embed_manifest!(texts::ui::r#type::Detail);
     texts::embed_manifest! {
         const GROUP = Ui;
         const NESTED = ui::r#type::Detail;
     }
-    assert_eq!(GROUP.embedded_modules(), group.embedded_modules());
-    assert_eq!(NESTED.embedded_modules(), leaf.embedded_modules());
-    assert_eq!(leaf.embedded_modules(), raw_path.embedded_modules());
+    let group = GROUP;
+    let leaf = NESTED;
     assert_eq!(leaf.embedded_modules().unwrap().len(), 3);
     assert_eq!(group.embedded_modules().unwrap().len(), 9);
     for (locale, path, bytes) in group.embedded_modules().unwrap() {
@@ -220,11 +217,9 @@ localization::embed! {{ const REEXPORTED = ui::Options; }}
 		&fixture,
 		&schema,
 		r#"
-    let explicit = texts::embed_manifest!(module = texts::Translations);
     let complete = texts::embed_manifest!();
     texts::embed_manifest! { const ALL = Translations; }
     assert_eq!(ALL.embedded_modules(), complete.embedded_modules());
-    assert_eq!(explicit.embedded_modules(), complete.embedded_modules());
     assert_eq!(complete.embedded_modules().unwrap().len(), 12);
     for (locale, path, bytes) in complete.embedded_modules().unwrap() {
         println!("{locale} {path} {}", std::str::from_utf8(bytes).unwrap());
@@ -243,44 +238,27 @@ localization::embed! {{ const REEXPORTED = ui::Options; }}
 		fs::remove_file(path).unwrap();
 	}
 
-	for (selector, diagnostic) in [
-		(
-			"SettingsTexts",
-			"expected a qualified generated catalog path",
-		),
-		("Interface,", "expected a qualified generated catalog path"),
-		(
-			"crate::SettingsTexts",
-			"unsupported catalog name `SettingsTexts`",
-		),
-		("crate::Interface", "unsupported catalog name `Interface`"),
-		("std::string::String", "unsupported catalog name `String`"),
-		("texts::ui::Missing", "unsupported catalog name `Missing`"),
-		(
-			"texts::ui::Detail",
-			"Use a generated catalog name in this namespace: Main, Options, Type",
-		),
-		(
-			"\"ui/options.ftl\"",
-			"Strings, generic arguments and arbitrary expressions",
-		),
-		(
-			"texts::ui::Options::<()>",
-			"Strings, generic arguments and arbitrary expressions",
-		),
-		(
-			"{ texts::ui::Options }",
-			"Strings, generic arguments and arbitrary expressions",
-		),
-		("", "expected a qualified generated catalog path"),
+	// Removed expression selectors must fail before resolving paths or reading files.
+	for argument in [
+		"module = texts::ui::Options",
+		"module = texts::Ui",
+		"module = texts::Translations",
+		"module =",
+		"texts::ui::Options",
+		"texts::ui::Options,",
+		"::application::texts::ui::Options",
+		"self::texts::ui::Options",
+		"Interface",
+		"\"ui/options.ftl\"",
+		"texts::ui::Options::<()>",
 	] {
-		let expression = format!("texts::embed_manifest!(module = {selector})");
-		assert_rejected(&fixture, &schema, &expression, diagnostic);
-
-		if !selector.is_empty() {
-			let expression = format!("texts::embed_manifest!({selector})");
-			assert_rejected(&fixture, &schema, &expression, diagnostic);
-		}
+		let expression = format!("texts::embed_manifest!({argument})");
+		assert_rejected(
+			&fixture,
+			&schema,
+			&expression,
+			"use `embed_manifest!()` for the complete tree or",
+		);
 	}
 
 	for (selector, diagnostic) in [
@@ -322,16 +300,6 @@ localization::embed! {{ const REEXPORTED = ui::Options; }}
 		&schema,
 		"SettingsTexts!(@manifest)",
 		"cannot find macro `SettingsTexts`",
-	);
-
-	// A re-export retaining a known name still has no generated namespace dispatcher.
-	// Rust diagnoses that path; it must never choose another namespace's recipe.
-	let forwarded = format!("{schema}\nmod forwarded {{ pub use crate::texts::ui::Options; }}");
-	assert_rejected(
-		&fixture,
-		&forwarded,
-		"texts::embed_manifest!(forwarded::Options)",
-		"could not find `__embed_scope` in `forwarded`",
 	);
 }
 

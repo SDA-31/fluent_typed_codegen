@@ -73,7 +73,10 @@ pub mod texts {{
 		}
 	}
 
-	fixture.write("src/lib.rs", &format!("{source}\npub fn selected() -> l10n::LocalizationManifest {{ texts::embed_manifest!(module = texts::ui::Options) }}\n"));
+	fixture.write(
+		"src/lib.rs",
+		&format!("{source}\ntexts::embed_manifest! {{ pub const SELECTED = ui::Options; }}\n"),
+	);
 	cargo(&fixture, &["check", "--locked", "--offline", "--quiet"]);
 
 	for (path, bytes) in originals {

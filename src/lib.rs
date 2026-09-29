@@ -104,11 +104,8 @@
 //! [`LocalizationManifest`] contract, while
 //! `texts::embed_manifest!()` explicitly includes a build-prepared raw source set.
 //! Without that macro invocation, generated APIs contain no FTL payload.
-//! The embedded macro is crate-local; `module = texts::ui::Menu` selects one leaf,
-//! and `module = texts::Ui` includes the group's descendants, in every language.
-//! The short form `texts::embed_manifest!(texts::ui::Menu)` is also supported.
-//! Use a qualified generated type path; aliases of parent modules work, but imported
-//! type names, renamed type paths and generic parameters are not embedded selectors.
+//! The embedded macro is crate-local. It accepts only an empty invocation for the
+//! complete tree or a block of named manifest constants for selected scopes.
 //! Ordinary catalog imports and aliases remain unrestricted.
 //! Unselected FTL is not included even in unoptimized builds without LTO or stripping.
 //!

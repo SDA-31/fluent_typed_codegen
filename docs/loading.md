@@ -149,15 +149,17 @@ Embedding needs no `manifest` feature and performs no runtime filesystem reads.
 The macro uses the manifest already processed by `build.rs`; it takes no runtime
 path or `LocalizationManifest` value.
 
-Keep the 0.2.1 dependencies from [Setup](../README.md#setup); this version
-supports typed embedded selection. Replace `src/main.rs` with:
+Use the dependencies from [Setup](../README.md#setup). Replace `src/main.rs` with:
 
 ```rust
 fluent_typed_codegen::translations!(pub mod texts);
 
+texts::embed_manifest! {
+    const HUD = presentation::Hud;
+}
+
 fn main() -> Result<(), texts::LoadError> {
-    let manifest = texts::embed_manifest!(module = texts::presentation::Hud);
-    let hud = texts::presentation::Hud::from_manifest(texts::Locale::Es, &manifest)?;
+    let hud = texts::presentation::Hud::from_manifest(texts::Locale::Es, &HUD)?;
     println!("{}", hud.msg_greeting("Ada"));
     Ok(())
 }
@@ -165,13 +167,14 @@ fn main() -> Result<(), texts::LoadError> {
 
 The selector includes that leaf's raw bytes in **all compiled languages**. Only
 Spanish is parsed here. Use `texts::embed_manifest!()` to include every leaf and
-language. A group such as `module = texts::Presentation` includes its descendant
-leaves; `module = texts::Translations` is the explicit whole-tree form.
+language. Inside the declaration block, `Presentation` selects its descendant
+leaves and `Translations` selects the whole tree. Each constant has type
+`LocalizationManifest` and can be exported from a private localization module.
 
-Imports work too: after `use texts::presentation::Hud as HudTexts`, select
-`module = HudTexts`. Pass a generated type path or a `use` alias, not an arbitrary
-`type` alias or generic parameter: selection needs the associated generated macro
-as well as the type.
+The macro accepts only an empty invocation or a block of constant declarations.
+Selectors are original schema paths relative to the generated tree, not imported
+aliases. `use texts::presentation::Hud as HudTexts` still works for constructing
+the catalog: `HudTexts::from_manifest(locale, &HUD)`.
 
 Without a macro invocation, the generated schema embeds no FTL payload, even in
 debug builds without optimization, LTO or linker dead-code removal. Selecting a
