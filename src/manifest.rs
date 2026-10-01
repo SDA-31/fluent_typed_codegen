@@ -83,8 +83,8 @@ impl LocalizationManifest {
 	/// Read only the TOML manifest, retaining its path for later module reads.
 	///
 	/// Relative paths use the process's current directory. Pass the installed
-	/// manifest path in a packaged application; Cargo's asset root is a build-time
-	/// setting and is not consulted by this method.
+	/// manifest path in a packaged application; the build-time Cargo catalog setting
+	/// is not consulted by this method.
 	///
 	/// # Errors
 	/// Returns I/O or configuration diagnostics. FTL files are not accessed here.

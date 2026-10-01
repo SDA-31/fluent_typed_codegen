@@ -31,12 +31,12 @@
 //!
 //! ```toml
 //! [package.metadata.localization]
-//! asset-root = "assets"
-//! catalog = "localizations/localization.toml"
+//! catalog = "assets/localizations/localization.toml"
 //! ```
 //!
-//! The asset root is relative to the Cargo package. The configuration path is
-//! relative to that root. Its filename is configurable; the TOML contains:
+//! `catalog` is a filesystem path relative to the package's Cargo.toml; `..` can
+//! locate shared sources. Its filename is configurable. The generator does not
+//! select an engine asset root. The TOML contains:
 //!
 //! ```toml
 //! translations-directory = "translations"

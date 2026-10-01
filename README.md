@@ -80,9 +80,12 @@ fluent-typed = { version = "0.9.0", default-features = false, features = ["langn
 fluent-syntax = "0.12"
 
 [package.metadata.localization]
-asset-root = "assets"
-catalog = "localizations/localization.toml"
+catalog = "assets/localizations/localization.toml"
 ```
+
+The catalog-only build configuration requires matching source checkouts; use
+the [local checkout setup](#work-on-local-checkouts) to try it. Published 0.2.1
+uses the earlier two-field build configuration.
 
 ### 2. Run generation from build.rs
 
@@ -175,8 +178,7 @@ Paths and language policy live in two small TOML sections:
 
 | Setting | Location | Meaning |
 | --- | --- | --- |
-| `asset-root` | Cargo package metadata | Directory relative to the consuming package. |
-| `catalog` | Cargo package metadata | Configuration file relative to `asset-root`. |
+| `catalog` | Cargo package metadata | TOML file relative to the consuming package's `Cargo.toml`; `..` may locate shared sources. |
 | `translations-directory` | Catalog TOML | Locale folders relative to this TOML; defaults to `"."`. |
 | `source-language` | Catalog TOML | Language defining message keys, references and argument annotations. |
 | `default-language` | Catalog TOML | Startup metadata emitted as `DEFAULT_LANGUAGE`. |
@@ -339,8 +341,9 @@ Build-time discovery still reads the source tree through an explicit `build.rs`.
 There is no archive option in the generator. For runtime distribution, package
 the original per-language FTL files, not generated Rust or intermediate bundles
 under `OUT_DIR`. `MODULES` records `(locale, relative module path)` without translation data;
-`CATALOG_ASSET_PATH` and `LANGUAGES_DIRECTORY` describe the definition and layout.
-`ASSET_ROOT` is a build-time location, not a runtime storage requirement.
+`CATALOG_PATH` and `LANGUAGES_DIRECTORY` describe the definition and layout.
+`CATALOG_PATH` is a build-time filesystem location. Runtime storage addresses
+and loader roots belong to the application.
 
 Bevy consumers additionally package the original definition TOML and preserve
 its relative directory layout. The
@@ -451,7 +454,7 @@ implement a rendering engine.
 | `translations!` cannot find `OUT_DIR` or `translations.rs` | Add the [build.rs](#2-run-generation-from-buildrs) beside the application's Cargo.toml and enable `build` on its build dependency. Resolve any earlier generation error first. |
 | `LocalizationManifest::from_file` or `parse` is missing | Enable `manifest` on the **normal** dependency, as in the [file recipe](docs/loading.md#read-files-through-a-manifest). A build dependency's features do not enable runtime APIs. |
 | Generated code cannot resolve `fluent_typed` or `fluent_syntax` | Keep `fluent-typed` and `fluent-syntax` under those canonical dependency names in the application's `[dependencies]`. |
-| Runtime file loading reports a missing file | Run the recipe from the application directory. In a packaged application, pass the installed TOML path; retain its relative translation layout. Cargo's `asset-root` does not set the runtime working directory. |
+| Runtime file loading reports a missing file | Run the recipe from the application directory. In a packaged application, pass the installed TOML path; retain its relative translation layout. The build-time `catalog` setting does not set the runtime working directory. |
 | Loading reports missing, duplicate or unexpected modules | Pass each logical path once, without a locale prefix. `from_modules` needs a complete language; use `Hud::new` for just one leaf. |
 | `load_all` reports missing languages | Supply every compiled locale. To keep only one language, use `from_modules` or `from_manifest`. |
 | `Locale::default()` does not match `default-language` | `Locale::default()` is the source language. Choose the startup locale explicitly; `DEFAULT_LANGUAGE` is emitted metadata. |

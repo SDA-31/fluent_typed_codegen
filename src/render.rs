@@ -53,7 +53,7 @@ pub(super) fn render(
 
 		#[allow(unused_imports)]
 		pub use __catalog_metadata::{
-			ASSET_ROOT, CATALOG_ASSET_PATH, DEFAULT_LANGUAGE, SOURCE_LANGUAGE,
+			CATALOG_PATH, DEFAULT_LANGUAGE, SOURCE_LANGUAGE,
 			LANGUAGES_DIRECTORY, CATALOG_CONFIG, MODULES,
 		};
 

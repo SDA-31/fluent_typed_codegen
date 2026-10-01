@@ -65,8 +65,7 @@ impl Drop for Fixture {
 
 fn settings() -> Settings {
 	Settings {
-		asset_root: "data".into(),
-		catalog: "strings/localization.toml".into(),
+		catalog: "data/strings/localization.toml".into(),
 	}
 }
 
@@ -83,8 +82,7 @@ fn metadata() -> &'static str {
 [package]
 name = "example"
 [package.metadata.localization]
-asset-root = "data"
-catalog = "strings/localization.toml"
+catalog = "data/strings/localization.toml"
 "#
 }
 
@@ -93,19 +91,63 @@ fn metadata_has_one_path_source_and_no_language_allowlist() {
 	assert_eq!(Settings::from_manifest(metadata()).unwrap(), settings());
 
 	for invalid in [
-		metadata().replace("asset-root", "asset-rooot"),
-		metadata().replace("asset-root = \"data\"", ""),
-		metadata().replace("asset-root = \"data\"", "asset-root = 7"),
-		metadata().replace("strings/localization.toml", "../outside.toml"),
-		metadata().replace("strings/localization.toml", "/absolute/localization.toml"),
-		metadata().replace("strings/localization.toml", "strings/interface.ftl"),
+		metadata().replace("catalog", "catlog"),
+		metadata().replace("catalog = \"data/strings/localization.toml\"", ""),
 		metadata().replace(
-			"strings/localization.toml",
-			"strings/localization.toml#label",
+			"catalog = \"data/strings/localization.toml\"",
+			"catalog = 7",
 		),
-		metadata().replace("asset-root = \"data\"", "asset-root = \"../data\""),
+		metadata().replace(
+			"data/strings/localization.toml",
+			"/absolute/localization.toml",
+		),
+		metadata().replace(
+			"data/strings/localization.toml",
+			"data/strings/interface.ftl",
+		),
+		metadata().replace(
+			"data/strings/localization.toml",
+			"strings\\localization.toml",
+		),
+		metadata().replace(
+			"[package.metadata.localization]",
+			"[package.metadata.localization]\nasset-root = \"data\"",
+		),
 	] {
 		assert!(Settings::from_manifest(&invalid).is_err(), "{invalid}");
+	}
+}
+
+#[test]
+fn shared_catalog_is_resolved_relative_to_the_consuming_package() {
+	let fixture = Fixture::new();
+	fixture.catalogs();
+	fixture.write("data/strings/localization#preview.toml", configuration());
+	let package = fixture.0.join("consumer");
+	fs::create_dir(&package).unwrap();
+	let settings = Settings::from_manifest(
+		"[package.metadata.localization]\ncatalog = \"../data/strings/localization#preview.toml\"",
+	)
+	.unwrap();
+	let output = package.join("target/generated");
+	generate(&package, &output, &settings).unwrap();
+	let metadata = fs::read_to_string(output.join("locale_modules.rs")).unwrap();
+	let generated = fs::read_to_string(output.join("translations.rs")).unwrap();
+
+	assert!(
+		metadata.contains("CATALOG_PATH: &str = \"../data/strings/localization#preview.toml\"")
+	);
+	assert!(metadata.contains("ui/main.ftl"));
+	assert!(generated.contains("embed_manifest"));
+	assert!(output.join("modules/ui/main/translations.rs").is_file());
+
+	#[cfg(feature = "manifest")]
+	{
+		let manifest =
+			crate::LocalizationManifest::from_file(package.join(&settings.catalog)).unwrap();
+		let bytes = manifest.read("fr", "ui/main.ftl").unwrap();
+		assert_eq!(bytes.as_ref(), b"greeting = Hello { $name }\n");
+		assert!(manifest.read("fr", "../ui/main.ftl").is_err());
 	}
 }
 
@@ -145,8 +187,8 @@ fn discovers_all_languages_and_nested_modules_in_a_relocated_catalog() {
 		assert!(generated.contains(&format!("\"{language}\" =>")));
 	}
 
-	assert!(manifest.contains("ASSET_ROOT: &str = \"data\""));
-	assert!(manifest.contains("CATALOG_ASSET_PATH: &str = \"strings/localization.toml\""));
+	assert!(manifest.contains("CATALOG_PATH: &str = \"data/strings/localization.toml\""));
+	assert!(!manifest.contains("ASSET_ROOT"));
 	assert!(manifest.contains("DEFAULT_LANGUAGE: &str = \"pt-BR\""));
 	assert!(output.join("modules/ui/main/translations.ftl").is_file());
 	assert!(!fixture.0.join("src").exists());
@@ -491,10 +533,10 @@ fn configured_language_directory_cannot_bypass_symlink_checks() {
 }
 
 #[test]
-fn explicit_settings_reject_invalid_asset_paths_too() {
+fn explicit_settings_reject_invalid_catalog_paths_too() {
 	let fixture = Fixture::new();
 	let mut settings = fixture.catalogs();
-	settings.catalog = Path::new("../escape.toml").into();
+	settings.catalog = Path::new("/absolute/localization.toml").into();
 	assert!(generate(&fixture.0, &fixture.0.join("target/generated"), &settings).is_err());
 }
 

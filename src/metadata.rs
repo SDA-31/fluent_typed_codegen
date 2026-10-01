@@ -1,4 +1,4 @@
-//! Compile discovered asset addresses and catalog settings into Rust constants.
+//! Compile filesystem input locations and catalog settings into Rust constants.
 use crate::{Settings, discovery::CatalogSources};
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -9,10 +9,6 @@ pub(super) fn render(
 	sources: &CatalogSources,
 	config_path: &Path,
 ) -> Result<TokenStream, String> {
-	let asset_root = settings
-		.asset_root
-		.to_str()
-		.ok_or("asset-root must be UTF-8")?;
 	let catalog = settings.catalog.to_str().ok_or("catalog must be UTF-8")?;
 	let default_language = &sources.configuration.default_language;
 	let source_language = &sources.configuration.source_language;
@@ -31,11 +27,9 @@ pub(super) fn render(
 	}
 
 	Ok(quote! {
-		/// Build-time asset root relative to the consuming Cargo package.
-		/// Runtime storage may use a different root or a virtual asset source.
-		pub const ASSET_ROOT: &str = #asset_root;
-		/// Definition asset path relative to ASSET_ROOT.
-		pub const CATALOG_ASSET_PATH: &str = #catalog;
+		/// Build-time TOML path relative to the consuming Cargo package.
+		/// Runtime filesystem locations and engine asset addresses are application-owned.
+		pub const CATALOG_PATH: &str = #catalog;
 		/// Configured startup language, independent of the typed API's source language.
 		pub const DEFAULT_LANGUAGE: &str = #default_language;
 		/// Language whose messages and type annotations define the generated API.

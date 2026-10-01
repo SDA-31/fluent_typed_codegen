@@ -39,7 +39,7 @@ use fluent_typed_codegen::LocalizationManifest;
 fluent_typed_codegen::translations!(pub mod texts);
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let manifest = LocalizationManifest::from_file("assets/localizations/localization.toml")?;
+    let manifest = LocalizationManifest::from_file(texts::CATALOG_PATH)?;
     let hud = texts::presentation::Hud::from_manifest(texts::Locale::En, &manifest)?;
     println!("{}", hud.msg_greeting("Ada"));
     Ok(())
@@ -57,10 +57,12 @@ let translations = texts::Translations::from_manifest(texts::Locale::En, &manife
 println!("{}", translations.presentation().hud().msg_greeting("Ada"));
 ```
 
-Paths passed to `from_file` are relative to the process's current directory,
+`CATALOG_PATH` retains the package-relative build setting. This recipe runs from
+the consuming package directory. Paths passed to `from_file` are relative to the
+process's current directory,
 not the executable. Ship the TOML and translation tree together and pass their
 installed location in a packaged application. The runtime directory may differ
-from Cargo's build-time `asset-root`; module paths and compiled contracts must
+from the build-time `catalog` location; module paths and compiled contracts must
 still match. File reads here are synchronous. Your application owns any async I/O.
 
 If you already have the TOML text, `LocalizationManifest::parse(text, origin)`

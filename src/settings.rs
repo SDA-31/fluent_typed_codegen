@@ -3,12 +3,11 @@ use crate::paths;
 use std::path::{Path, PathBuf};
 use toml_edit::DocumentMut;
 
-/// Portable paths locating a consuming package's assets and catalog configuration.
+/// A package-relative filesystem path locating the catalog configuration.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Settings {
-	/// Asset directory relative to the consuming Cargo package, e.g. `assets`.
-	pub asset_root: PathBuf,
-	/// TOML configuration path relative to `asset_root`, e.g. `localizations/localization.toml`.
+	/// TOML path relative to the consuming Cargo package; `..` can locate shared sources.
+	/// For example, `assets/localizations/localization.toml`.
 	pub catalog: PathBuf,
 }
 
@@ -16,17 +15,16 @@ impl Settings {
 	/// Read `[package.metadata.localization]`; no list of languages is required.
 	///
 	/// # Errors
-	/// Rejects invalid TOML, unknown/missing fields and nonportable or escaping paths.
+	/// Rejects invalid TOML, unknown/missing fields and nonportable or absolute catalog paths.
 	/// Language settings belong to `localization.toml`, not Cargo metadata.
 	///
 	/// ```
 	/// use fluent_typed_codegen::Settings;
 	/// let settings = Settings::from_manifest(r#"
 	/// [package.metadata.localization]
-	/// asset-root = "assets"
-	/// catalog = "localizations/localization.toml"
+	/// catalog = "assets/localizations/localization.toml"
 	/// "#)?;
-	/// assert_eq!(settings.asset_root.to_str(), Some("assets"));
+	/// assert_eq!(settings.catalog.to_str(), Some("assets/localizations/localization.toml"));
 	/// # Ok::<(), String>(())
 	/// ```
 	pub fn from_manifest(source: &str) -> Result<Self, String> {
@@ -41,7 +39,7 @@ impl Settings {
 			.ok_or("missing [package.metadata.localization] in Cargo.toml")?;
 
 		for (key, _) in table {
-			if !["asset-root", "catalog"].contains(&key) {
+			if key != "catalog" {
 				return Err(format!("unknown localization setting: {key}"));
 			}
 		}
@@ -56,7 +54,6 @@ impl Settings {
 		};
 
 		let settings = Self {
-			asset_root: value("asset-root")?.into(),
 			catalog: value("catalog")?.into(),
 		};
 		settings.validate()?;
@@ -64,8 +61,7 @@ impl Settings {
 	}
 
 	pub(super) fn validate(&self) -> Result<(), String> {
-		paths::validate_relative(&self.asset_root, "asset-root")?;
-		paths::validate_relative(&self.catalog, "catalog")?;
+		paths::validate_catalog(&self.catalog)?;
 
 		if self
 			.catalog
@@ -79,6 +75,6 @@ impl Settings {
 	}
 
 	pub(super) fn catalog_path(&self, package: &Path) -> PathBuf {
-		package.join(&self.asset_root).join(&self.catalog)
+		package.join(&self.catalog)
 	}
 }

@@ -108,7 +108,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 Run from the application's directory. `from_file` reads the TOML contract;
 `from_manifest` reads and parses the requested FTL. Installed applications supply
-their installed manifest path. Build-time `asset-root` is not a runtime root.
+their installed manifest path. The build-time `catalog` path does not select a runtime root.
 Encrypted, compressed or network data stays application-owned: supply readable
 bytes to `Hud::new(locale, &bytes)` or decoded text pairs to `from_modules`.
 
@@ -155,3 +155,22 @@ same. Applications still own fallback and caching; this upgrade does not provide
 automatic eviction or eliminate upstream input copying/reparsing.
 
 [All changes](../CHANGELOG.md) · [Loading recipes](loading.md) · [Setup](../README.md#setup)
+
+## Catalog-only build configuration
+
+For the current source-checkout API, merge the previous `asset-root` and
+`catalog` values into one path relative to the package's `Cargo.toml`:
+
+```toml
+[package.metadata.localization]
+catalog = "assets/localizations/localization.toml"
+```
+
+Remove `asset-root`; it is rejected as an unknown setting. In explicit generator
+settings, keep only `Settings { catalog: ... }`. Generated `CATALOG_PATH` replaces
+`CATALOG_ASSET_PATH`, and `ASSET_ROOT` is removed. The catalog path may contain
+`..` to share source translations across packages. Runtime logical module paths
+and `translations-directory` still cannot escape their declared scope.
+
+This build-API change requires matching source checkouts; published 0.2.1 still
+uses the previous configuration. No release archive changes retroactively.

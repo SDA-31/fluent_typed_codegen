@@ -25,3 +25,25 @@ pub(super) fn validate_relative(path: &Path, field: &str) -> Result<(), String> 
 
 	Ok(())
 }
+
+/// Validate a package-relative filesystem input, independently of engine asset syntax.
+/// Parent components may locate shared sources; `#` is an ordinary filename character.
+#[cfg(feature = "build")]
+pub(super) fn validate_catalog(path: &Path) -> Result<(), String> {
+	if path.as_os_str().is_empty()
+		|| path.to_str().is_none()
+		|| path.components().any(|part| {
+			!matches!(
+				part,
+				Component::Normal(_) | Component::CurDir | Component::ParentDir
+			)
+		}) || path.to_string_lossy().contains(['\\', ':'])
+	{
+		return Err(
+			"localization.catalog must be a UTF-8 relative filesystem path without '\\\\' or ':'"
+				.into(),
+		);
+	}
+
+	Ok(())
+}
