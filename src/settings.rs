@@ -12,10 +12,11 @@ pub struct Settings {
 }
 
 impl Settings {
-	/// Read `[package.metadata.localization]`; no list of languages is required.
+	/// Read `[package.metadata.localization]`; unknown fields are ignored.
+	/// No list of languages is required.
 	///
 	/// # Errors
-	/// Rejects invalid TOML, unknown/missing fields and nonportable or absolute catalog paths.
+	/// Rejects invalid TOML, missing or invalid `catalog`, and nonportable or absolute paths.
 	/// Language settings belong to `localization.toml`, not Cargo metadata.
 	///
 	/// ```
@@ -37,12 +38,6 @@ impl Settings {
 			.and_then(|item| item.get("localization"))
 			.and_then(|item| item.as_table())
 			.ok_or("missing [package.metadata.localization] in Cargo.toml")?;
-
-		for (key, _) in table {
-			if key != "catalog" {
-				return Err(format!("unknown localization setting: {key}"));
-			}
-		}
 
 		let value = |key: &str| {
 			table

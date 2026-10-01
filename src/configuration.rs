@@ -5,7 +5,7 @@ use std::path::PathBuf;
 #[cfg(any(feature = "build", feature = "manifest"))]
 use toml_edit::{DocumentMut, Table};
 
-/// Contents of `localization.toml`, separate from Cargo's asset-path settings.
+/// Contents of `localization.toml`, separate from Cargo's catalog path.
 ///
 /// At build time, languages are discovered as directories, not enumerated here.
 /// Changes to compiled languages, modules or typed message contracts require
@@ -26,14 +26,15 @@ pub struct CatalogConfig {
 
 #[cfg(any(feature = "build", feature = "manifest"))]
 impl CatalogConfig {
-	/// Parse TOML, rejecting unknown fields, missing language fields and unsafe paths.
+	/// Parse TOML, ignoring unknown fields and validating recognized fields.
 	///
 	/// `translations-directory` is optional and defaults to `.` (locale folders
 	/// beside the TOML). The legacy `languages-directory` key is also accepted;
 	/// specifying both keys is an error, even when their values match.
 	///
 	/// # Errors
-	/// Returns a diagnostic for invalid TOML, fields or directory paths. Existence,
+	/// Returns a diagnostic for invalid TOML, missing or invalid recognized fields,
+	/// conflicting directory aliases, or unsafe directory paths. Existence,
 	/// canonical locale spelling and module parity are checked by code generation.
 	///
 	/// ```
@@ -51,15 +52,6 @@ impl CatalogConfig {
 			.parse::<DocumentMut>()
 			.map_err(|error| error.to_string())?;
 		let table = document.as_table();
-		check_fields(
-			table,
-			&[
-				"translations-directory",
-				"languages-directory",
-				"source-language",
-				"default-language",
-			],
-		)?;
 		let settings = Self {
 			languages_directory: translations_directory(table)?.into(),
 			source_language: string_field(table, "source-language")?,
@@ -83,17 +75,6 @@ fn translations_directory(table: &Table) -> Result<String, String> {
 		(false, true) => string_field(table, "languages-directory"),
 		(false, false) => Ok(".".into()),
 	}
-}
-
-#[cfg(any(feature = "build", feature = "manifest"))]
-fn check_fields(table: &Table, allowed: &[&str]) -> Result<(), String> {
-	for (key, _) in table {
-		if !allowed.contains(&key) {
-			return Err(format!("unknown localization setting: {key}"));
-		}
-	}
-
-	Ok(())
 }
 
 #[cfg(any(feature = "build", feature = "manifest"))]

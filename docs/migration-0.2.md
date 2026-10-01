@@ -166,7 +166,8 @@ For the current source-checkout API, merge the previous `asset-root` and
 catalog = "assets/localizations/localization.toml"
 ```
 
-Remove `asset-root`; it is rejected as an unknown setting. In explicit generator
+Remove `asset-root`; unknown fields are ignored and no longer affect path
+resolution. Recognized fields are still validated. In explicit generator
 settings, keep only `Settings { catalog: ... }`. Generated `CATALOG_PATH` replaces
 `CATALOG_ASSET_PATH`, and `ASSET_ROOT` is removed. The catalog path may contain
 `..` to share source translations across packages. Runtime logical module paths

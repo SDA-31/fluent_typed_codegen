@@ -1,6 +1,60 @@
 use crate::{CatalogConfig, LocalizationManifest, ManifestError};
 use std::{borrow::Cow, path::Path};
 
+#[cfg(any(feature = "build", feature = "manifest"))]
+#[test]
+fn catalog_configuration_ignores_extra_fields_and_validates_known_fields() {
+	let source = "source-language = 'en'\ndefault-language = 'fr'\ntranslations-directory = 'texts'\nextra = { enabled = true }\nlocales = ['en', 'fr']\nrevision = 7\n";
+	let config = CatalogConfig::parse(source).unwrap();
+	assert_eq!(config.source_language, "en");
+	assert_eq!(config.default_language, "fr");
+	assert_eq!(config.languages_directory, Path::new("texts"));
+
+	for (valid, invalid, field) in [
+		(
+			"source-language = 'en'",
+			"source-language = 7",
+			"source-language",
+		),
+		(
+			"default-language = 'fr'",
+			"default-language = ''",
+			"default-language",
+		),
+		(
+			"translations-directory = 'texts'",
+			"translations-directory = false",
+			"translations-directory",
+		),
+		(
+			"translations-directory = 'texts'",
+			"translations-directory = '../outside'",
+			"translations-directory",
+		),
+		(
+			"source-language = 'en'",
+			"source-language-extra = 'en'",
+			"source-language",
+		),
+	] {
+		assert!(
+			CatalogConfig::parse(&source.replace(valid, invalid))
+				.unwrap_err()
+				.contains(field)
+		);
+	}
+
+	let conflict = format!("{source}languages-directory = 'texts'\n");
+	assert!(
+		CatalogConfig::parse(&conflict)
+			.unwrap_err()
+			.contains("legacy alias")
+	);
+	let legacy = source.replace("translations-directory", "languages-directory");
+	assert_eq!(CatalogConfig::parse(&legacy).unwrap(), config);
+	assert!(CatalogConfig::parse(&format!("{source}broken = [")).is_err());
+}
+
 #[test]
 fn constant_manifest_shares_metadata_and_borrows_sorted_entries_without_an_index() {
 	use std::sync::{

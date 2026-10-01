@@ -109,13 +109,33 @@ fn metadata_has_one_path_source_and_no_language_allowlist() {
 			"data/strings/localization.toml",
 			"strings\\localization.toml",
 		),
-		metadata().replace(
-			"[package.metadata.localization]",
-			"[package.metadata.localization]\nasset-root = \"data\"",
-		),
 	] {
 		assert!(Settings::from_manifest(&invalid).is_err(), "{invalid}");
 	}
+}
+
+#[test]
+fn metadata_ignores_extra_fields_without_using_them_to_resolve_catalog() {
+	let source = format!(
+		"{}\nasset-root = 42\nextra = {{ enabled = true }}\nlanguages = ['en', 'fr']\n",
+		metadata()
+	);
+	let parsed = Settings::from_manifest(&source).unwrap();
+	assert_eq!(parsed, settings());
+	assert_eq!(
+		parsed.catalog_path(Path::new("consumer")),
+		Path::new("consumer/data/strings/localization.toml")
+	);
+
+	let invalid = source.replace(
+		"catalog = \"data/strings/localization.toml\"",
+		"catalog = 7",
+	);
+	assert!(
+		Settings::from_manifest(&invalid)
+			.unwrap_err()
+			.contains("catalog")
+	);
 }
 
 #[test]

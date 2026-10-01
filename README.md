@@ -61,8 +61,10 @@ cargo new localization-demo --edition 2024
 cd localization-demo
 ```
 
-Replace its `Cargo.toml` with this complete file. The build dependency generates
-the API; the normal dependency includes it and supplies the manifest type.
+Replace its `Cargo.toml` with the complete file below, then add the
+[local checkout override](#work-on-local-checkouts) for this API. The build
+dependency generates the API; the normal dependency includes it and supplies
+the manifest type.
 
 ```toml
 [package]
@@ -82,10 +84,6 @@ fluent-syntax = "0.12"
 [package.metadata.localization]
 catalog = "assets/localizations/localization.toml"
 ```
-
-The catalog-only build configuration requires matching source checkouts; use
-the [local checkout setup](#work-on-local-checkouts) to try it. Published 0.2.1
-uses the earlier two-field build configuration.
 
 ### 2. Run generation from build.rs
 
@@ -190,7 +188,8 @@ specifying both names is an error. The generator does not guess directory names.
 The application selects its initial locale. `default-language` records that policy;
 `Locale::default()` identifies the **source** language.
 
-Unknown fields, unsafe paths, symlinked source trees, missing languages/modules,
+Unknown fields are ignored in Cargo localization metadata and the TOML manifest.
+Invalid recognized fields, unsafe paths, symlinked source trees, missing languages/modules,
 duplicate keys and incompatible contracts fail generation. Module diagnostics
 list missing and extra paths; translator files are never repaired automatically.
 Use `fluent_typed_codegen::from_cargo()` for custom `Result`-based build-error handling.
@@ -577,7 +576,7 @@ These commands work from a standalone generator checkout. Add `--locked --offlin
 after the first dependency resolution. The local lockfile and target directory
 are ignored; a consuming workspace owns its own lockfile.
 The [bundled example](examples/minimal/README.md) uses repository-local paths for
-development; external applications use the registry dependencies in Setup.
+development; external applications follow Setup with its matching checkout override.
 
 ### Work on local checkouts
 
@@ -592,8 +591,8 @@ fluent_typed_codegen = { path = "/absolute/path/to/fluent_typed_codegen" }
 Use the checkout containing the API you are testing. The patch applies to both
 normal and build dependencies, so generated code and runtime macros stay aligned.
 In a Cargo workspace, put it in the workspace root. The bundled example already
-uses matching path dependencies and needs no patch. Released applications use
-the registry setup instead.
+uses matching path dependencies and needs no patch. For the published API, see
+the [versioned package documentation](https://docs.rs/fluent_typed_codegen/0.2.1/fluent_typed_codegen/).
 
 ## Continuous integration
 
