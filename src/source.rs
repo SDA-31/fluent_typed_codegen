@@ -1,17 +1,21 @@
 //! Validate and print generated Rust; no formatter process or source-tree edits.
+use crate::{BuildError, SyntaxNode};
 use proc_macro2::TokenStream;
 use syn::visit::{self, Visit};
 
-pub(super) fn format(tokens: TokenStream, filename: &str) -> Result<String, String> {
-	let file =
-		syn::parse2(tokens).map_err(|error| format!("generated Rust `{filename}`: {error}"))?;
+pub(super) fn format(tokens: TokenStream, filename: &str) -> Result<String, BuildError> {
+	let file = syn::parse2(tokens).map_err(|source| BuildError::Syntax {
+		file: filename.into(),
+		source,
+	})?;
 	let mut syntax = StructuredSyntax::default();
 	syntax.visit_file(&file);
 
 	if let Some(kind) = syntax.unsupported {
-		return Err(format!(
-			"generated Rust `{filename}`: unsupported opaque {kind} (Verbatim); emit structured Rust syntax instead"
-		));
+		return Err(BuildError::UnsupportedSyntax {
+			file: filename.into(),
+			node: kind,
+		});
 	}
 
 	Ok(format!(
@@ -25,13 +29,13 @@ pub(super) fn format(tokens: TokenStream, filename: &str) -> Result<String, Stri
 // Macro token bodies remain opaque deliberately: their grammar belongs to Rust.
 #[derive(Default)]
 struct StructuredSyntax {
-	unsupported: Option<&'static str>,
+	unsupported: Option<SyntaxNode>,
 }
 
 impl<'ast> Visit<'ast> for StructuredSyntax {
 	fn visit_item(&mut self, node: &'ast syn::Item) {
 		if matches!(node, syn::Item::Verbatim(_)) {
-			self.unsupported.get_or_insert("Item");
+			self.unsupported.get_or_insert(SyntaxNode::Item);
 
 			return;
 		}
@@ -41,7 +45,7 @@ impl<'ast> Visit<'ast> for StructuredSyntax {
 
 	fn visit_foreign_item(&mut self, node: &'ast syn::ForeignItem) {
 		if matches!(node, syn::ForeignItem::Verbatim(_)) {
-			self.unsupported.get_or_insert("ForeignItem");
+			self.unsupported.get_or_insert(SyntaxNode::ForeignItem);
 
 			return;
 		}
@@ -51,7 +55,7 @@ impl<'ast> Visit<'ast> for StructuredSyntax {
 
 	fn visit_impl_item(&mut self, node: &'ast syn::ImplItem) {
 		if matches!(node, syn::ImplItem::Verbatim(_)) {
-			self.unsupported.get_or_insert("ImplItem");
+			self.unsupported.get_or_insert(SyntaxNode::ImplItem);
 
 			return;
 		}
@@ -61,7 +65,7 @@ impl<'ast> Visit<'ast> for StructuredSyntax {
 
 	fn visit_trait_item(&mut self, node: &'ast syn::TraitItem) {
 		if matches!(node, syn::TraitItem::Verbatim(_)) {
-			self.unsupported.get_or_insert("TraitItem");
+			self.unsupported.get_or_insert(SyntaxNode::TraitItem);
 
 			return;
 		}
@@ -71,7 +75,7 @@ impl<'ast> Visit<'ast> for StructuredSyntax {
 
 	fn visit_expr(&mut self, node: &'ast syn::Expr) {
 		if matches!(node, syn::Expr::Verbatim(_)) {
-			self.unsupported.get_or_insert("Expr");
+			self.unsupported.get_or_insert(SyntaxNode::Expr);
 
 			return;
 		}
@@ -81,7 +85,7 @@ impl<'ast> Visit<'ast> for StructuredSyntax {
 
 	fn visit_pat(&mut self, node: &'ast syn::Pat) {
 		if matches!(node, syn::Pat::Verbatim(_)) {
-			self.unsupported.get_or_insert("Pat");
+			self.unsupported.get_or_insert(SyntaxNode::Pat);
 
 			return;
 		}
@@ -91,7 +95,7 @@ impl<'ast> Visit<'ast> for StructuredSyntax {
 
 	fn visit_type(&mut self, node: &'ast syn::Type) {
 		if matches!(node, syn::Type::Verbatim(_)) {
-			self.unsupported.get_or_insert("Type");
+			self.unsupported.get_or_insert(SyntaxNode::Type);
 
 			return;
 		}
@@ -101,7 +105,7 @@ impl<'ast> Visit<'ast> for StructuredSyntax {
 
 	fn visit_type_param_bound(&mut self, node: &'ast syn::TypeParamBound) {
 		if matches!(node, syn::TypeParamBound::Verbatim(_)) {
-			self.unsupported.get_or_insert("TypeParamBound");
+			self.unsupported.get_or_insert(SyntaxNode::TypeParamBound);
 
 			return;
 		}
@@ -135,7 +139,7 @@ mod tests {
 				use {::std::fmt};
 			),
 		] {
-			let error = format(tokens, "adapter.rs").unwrap_err();
+			let error = format(tokens, "adapter.rs").unwrap_err().to_string();
 
 			assert!(error.contains("generated Rust `adapter.rs`"), "{error}");
 			assert!(error.contains("Verbatim"), "{error}");

@@ -1,6 +1,8 @@
 //! Build-time localization.toml input; runtime integrations own their transport.
 #[cfg(any(feature = "build", feature = "manifest"))]
 use crate::paths;
+#[cfg(any(feature = "build", feature = "manifest"))]
+use crate::{ConfigError, ConfigField, FieldError};
 use std::path::PathBuf;
 #[cfg(any(feature = "build", feature = "manifest"))]
 use toml_edit::{DocumentMut, Table};
@@ -45,44 +47,60 @@ impl CatalogConfig {
 	/// "#)?;
 	/// assert_eq!(config.default_language, "ru");
 	/// assert_eq!(config.languages_directory, std::path::Path::new("."));
-	/// # Ok::<(), String>(())
+	/// # Ok::<(), fluent_typed_codegen::ConfigError>(())
 	/// ```
-	pub fn parse(source: &str) -> Result<Self, String> {
+	pub fn parse(source: &str) -> Result<Self, ConfigError> {
 		let document = source
 			.parse::<DocumentMut>()
-			.map_err(|error| error.to_string())?;
+			.map_err(|source| ConfigError::Toml {
+				source: Box::new(source),
+			})?;
 		let table = document.as_table();
 		let settings = Self {
 			languages_directory: translations_directory(table)?.into(),
-			source_language: string_field(table, "source-language")?,
-			default_language: string_field(table, "default-language")?,
+			source_language: string_field(table, ConfigField::SourceLanguage)?,
+			default_language: string_field(table, ConfigField::DefaultLanguage)?,
 		};
-		paths::validate_relative(&settings.languages_directory, "translations-directory")?;
+
+		paths::validate_relative(
+			&settings.languages_directory,
+			ConfigField::TranslationsDirectory,
+		)?;
+
 		Ok(settings)
 	}
 }
 
 #[cfg(any(feature = "build", feature = "manifest"))]
-fn translations_directory(table: &Table) -> Result<String, String> {
+fn translations_directory(table: &Table) -> Result<String, ConfigError> {
 	match (
 		table.contains_key("translations-directory"),
 		table.contains_key("languages-directory"),
 	) {
-		(true, true) => {
-			Err("use only translations-directory; languages-directory is its legacy alias".into())
-		}
-		(true, false) => string_field(table, "translations-directory"),
-		(false, true) => string_field(table, "languages-directory"),
+		(true, true) => Err(ConfigError::ConflictingDirectories),
+		(true, false) => string_field(table, ConfigField::TranslationsDirectory),
+		(false, true) => string_field(table, ConfigField::LanguagesDirectory),
 		(false, false) => Ok(".".into()),
 	}
 }
 
 #[cfg(any(feature = "build", feature = "manifest"))]
-fn string_field(table: &Table, key: &str) -> Result<String, String> {
-	table
-		.get(key)
-		.and_then(|item| item.as_str())
-		.filter(|value| !value.trim().is_empty())
-		.map(str::to_owned)
-		.ok_or_else(|| format!("localization.{key} must be a nonempty string"))
+pub(crate) fn string_field(table: &Table, field: ConfigField) -> Result<String, ConfigError> {
+	let value = table.get(field.as_ref()).ok_or(ConfigError::InvalidField {
+		field,
+		reason: FieldError::Missing,
+	})?;
+	let text = value.as_str().ok_or(ConfigError::InvalidField {
+		field,
+		reason: FieldError::WrongType,
+	})?;
+
+	if text.trim().is_empty() {
+		return Err(ConfigError::InvalidField {
+			field,
+			reason: FieldError::Empty,
+		});
+	}
+
+	Ok(text.to_owned())
 }

@@ -110,7 +110,9 @@ fn payload_alias_collisions_report_both_source_paths() {
 			);
 		}
 
-		let error = generate(&fixture.0, &output, &settings).unwrap_err();
+		let error = generate(&fixture.0, &output, &settings)
+			.unwrap_err()
+			.to_string();
 
 		assert!(error.contains("FirstPromptName"), "{error}");
 		assert!(error.contains("ui/first.ftl"), "{error}");

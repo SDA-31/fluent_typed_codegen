@@ -6,7 +6,10 @@ use std::{
 	process::ExitCode,
 };
 
-pub(super) fn build_outcome(result: Result<(), String>, output: &mut impl Write) -> ExitCode {
+pub(super) fn build_outcome(
+	result: Result<(), crate::BuildError>,
+	output: &mut impl Write,
+) -> ExitCode {
 	let Err(error) = result else {
 		return ExitCode::SUCCESS;
 	};

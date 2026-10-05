@@ -2,7 +2,7 @@
 use fluent_typed_codegen::{Settings, generate};
 use std::{env, fs, path::PathBuf};
 
-fn main() -> Result<(), String> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
 	let mut args = env::args_os().skip(1);
 	let (Some(package), Some(output)) = (args.next(), args.next()) else {
 		return Err("usage: generate <consumer-package> <target-output-directory>".into());

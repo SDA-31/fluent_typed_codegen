@@ -168,6 +168,7 @@
 //! [extension guide](https://github.com/SDA-31/fluent_typed_codegen/tree/main#framework-extensions)
 //! for its syntax hooks and consumer-compilation requirements.
 //! Repository links follow main; this API reference describes the viewed version.
+#![cfg_attr(feature = "build", doc = include_str!("../docs/errors.md"))]
 #![warn(missing_docs)]
 mod macros;
 mod manifest;
@@ -177,7 +178,19 @@ mod manifest_tests;
 
 pub use manifest::{LocalizationManifest, ManifestError};
 
+#[cfg(feature = "build")]
+mod build_error;
+#[cfg(feature = "build")]
+mod build_io;
+#[cfg(feature = "build")]
+pub use build_error::{
+	BuildError, IoOperation, ModuleMismatch, NameError, NameOwner, SyntaxNode, UpstreamShapeError,
+};
+#[cfg(feature = "build")]
+pub use schema::SchemaError;
+mod config_error;
 mod configuration;
+pub use config_error::{ConfigError, ConfigField, FieldError, PathError};
 #[cfg(feature = "build")]
 mod diagnostics;
 #[cfg(feature = "build")]

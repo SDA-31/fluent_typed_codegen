@@ -191,6 +191,8 @@ Invalid recognized fields, unsafe paths, symlinked source trees, missing languag
 duplicate keys and incompatible contracts fail generation. Module diagnostics
 list missing and extra paths; translator files are never repaired automatically.
 Use `fluent_typed_codegen::from_cargo()` for custom `Result`-based build-error handling.
+It returns `BuildError`; configuration parsers return `ConfigError`. See
+[typed errors](docs/errors.md) for matching variants and preserving error causes.
 
 ## Typed translation scopes
 

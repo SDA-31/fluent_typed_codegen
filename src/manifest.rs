@@ -1,5 +1,5 @@
 //! Immutable source contracts, independent of any engine or loader.
-use crate::{CatalogConfig, paths};
+use crate::{CatalogConfig, ConfigError, ConfigField, PathError, paths};
 use std::{
 	borrow::Cow,
 	collections::HashMap,
@@ -39,7 +39,18 @@ enum Source {
 
 /// A manifest or requested module could not be obtained.
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum ManifestError {
+	/// A virtual origin must be read by its host loader.
+	RequiresLoader {
+		/// Host-owned virtual manifest address.
+		origin: PathBuf,
+	},
+	/// Invalid TOML or recognized configuration field.
+	Config {
+		/// Original typed configuration failure.
+		source: crate::ConfigError,
+	},
 	/// File reading failed, retaining its path and original error.
 	Io {
 		/// Requested filesystem path.
@@ -47,8 +58,7 @@ pub enum ManifestError {
 		/// Original I/O error.
 		source: io::Error,
 	},
-	/// Invalid TOML, configuration or logical module/locale path.
-	Invalid(String),
+
 	/// The explicit embedded set does not contain a requested module.
 	MissingModule {
 		/// Requested locale code.
@@ -62,7 +72,11 @@ impl fmt::Display for ManifestError {
 	fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
 			Self::Io { path, source } => write!(formatter, "{}: {source}", path.display()),
-			Self::Invalid(message) => formatter.write_str(message),
+
+			Self::Config { source } => source.fmt(formatter),
+			Self::RequiresLoader { .. } => {
+				formatter.write_str("virtual manifest origins require their host loader")
+			}
 			Self::MissingModule { locale, path } => {
 				write!(formatter, "missing module: {locale}/{path}")
 			}
@@ -74,6 +88,7 @@ impl std::error::Error for ManifestError {
 	fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
 		match self {
 			Self::Io { source, .. } => Some(source),
+			Self::Config { source } => Some(source),
 			_ => None,
 		}
 	}
@@ -107,7 +122,8 @@ impl LocalizationManifest {
 	/// Returns TOML or configuration diagnostics.
 	#[cfg(feature = "manifest")]
 	pub fn parse(source: &str, origin: impl Into<PathBuf>) -> Result<Self, ManifestError> {
-		let config = CatalogConfig::parse(source).map_err(ManifestError::Invalid)?;
+		let config =
+			CatalogConfig::parse(source).map_err(|source| ManifestError::Config { source })?;
 		Ok(Self::from_config(config, origin))
 	}
 
@@ -168,13 +184,17 @@ impl LocalizationManifest {
 				config,
 			} => {
 				if origin.to_string_lossy().contains("://") {
-					return Err(ManifestError::Invalid(
-						"virtual manifest origins require their host loader".into(),
-					));
+					return Err(ManifestError::RequiresLoader {
+						origin: origin.clone(),
+					});
 				}
 
-				paths::validate_relative(&config.languages_directory, "translations-directory")
-					.map_err(ManifestError::Invalid)?;
+				paths::validate_relative(
+					&config.languages_directory,
+					ConfigField::TranslationsDirectory,
+				)
+				.map_err(|source| ManifestError::Config { source })?;
+
 				let path = origin
 					.parent()
 					.unwrap_or_else(|| Path::new(""))
@@ -264,13 +284,29 @@ impl LocalizationManifest {
 }
 
 fn validate_request(locale: &str, path: &str) -> Result<(), ManifestError> {
-	paths::validate_relative(Path::new(locale), "locale").map_err(ManifestError::Invalid)?;
-	paths::validate_relative(Path::new(path), "module").map_err(ManifestError::Invalid)?;
+	paths::validate_relative(Path::new(locale), ConfigField::Locale)
+		.map_err(|source| ManifestError::Config { source })?;
+	paths::validate_relative(Path::new(path), ConfigField::Module)
+		.map_err(|source| ManifestError::Config { source })?;
 
-	if locale == "." || locale.contains('/') || !path.ends_with(".ftl") {
-		return Err(ManifestError::Invalid(
-			"expected one locale component and a logical .ftl path".into(),
-		));
+	if locale == "." || locale.contains('/') {
+		return Err(ManifestError::Config {
+			source: ConfigError::InvalidPath {
+				field: ConfigField::Locale,
+				path: locale.into(),
+				reason: PathError::ExpectedLocaleComponent,
+			},
+		});
+	}
+
+	if !path.ends_with(".ftl") {
+		return Err(ManifestError::Config {
+			source: ConfigError::InvalidPath {
+				field: ConfigField::Module,
+				path: path.into(),
+				reason: PathError::ExpectedFtl,
+			},
+		});
 	}
 
 	Ok(())

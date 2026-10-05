@@ -1,10 +1,10 @@
 //! One locale selector for every generated module; no fixed language allowlist.
-use crate::{discovery::CatalogSources, tree::names};
+use crate::{BuildError, discovery::CatalogSources, tree::names};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use std::collections::BTreeMap;
 
-pub(super) fn render(sources: &CatalogSources) -> Result<TokenStream, String> {
+pub(super) fn render(sources: &CatalogSources) -> Result<TokenStream, BuildError> {
 	let mut variants = BTreeMap::new();
 
 	for module in &sources.modules {
@@ -13,10 +13,11 @@ pub(super) fn render(sources: &CatalogSources) -> Result<TokenStream, String> {
 		if let Some(previous) = variants.insert(variant.clone(), module.language.clone())
 			&& previous != module.language
 		{
-			return Err(format!(
-				"locale names `{previous}` and `{}` collide as Rust variant `{variant}`",
-				module.language
-			));
+			return Err(BuildError::LocaleCollision {
+				first: previous,
+				second: module.language.clone(),
+				variant,
+			});
 		}
 	}
 

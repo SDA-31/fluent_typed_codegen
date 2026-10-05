@@ -1,5 +1,5 @@
 //! Compile filesystem input locations and catalog settings into Rust constants.
-use crate::{Settings, discovery::CatalogSources};
+use crate::{BuildError, Settings, discovery::CatalogSources};
 use proc_macro2::TokenStream;
 use quote::quote;
 use std::path::Path;
@@ -8,16 +8,12 @@ pub(super) fn render(
 	settings: &Settings,
 	sources: &CatalogSources,
 	config_path: &Path,
-) -> Result<TokenStream, String> {
-	let catalog = settings.catalog.to_str().ok_or("catalog must be UTF-8")?;
+) -> Result<TokenStream, BuildError> {
+	let catalog = BuildError::utf8(&settings.catalog)?;
 	let default_language = &sources.configuration.default_language;
 	let source_language = &sources.configuration.source_language;
-	let languages_directory = sources
-		.configuration
-		.languages_directory
-		.to_str()
-		.ok_or("translations-directory must be UTF-8")?;
-	let configuration = config_path.to_str().ok_or("catalog path must be UTF-8")?;
+	let languages_directory = BuildError::utf8(&sources.configuration.languages_directory)?;
+	let configuration = BuildError::utf8(config_path)?;
 	let mut modules = Vec::new();
 
 	for module in &sources.modules {

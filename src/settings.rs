@@ -1,5 +1,5 @@
 //! Package metadata locating translation sources for generation.
-use crate::paths;
+use crate::{ConfigError, ConfigField, PathError, configuration::string_field, paths};
 use std::path::{Path, PathBuf};
 use toml_edit::DocumentMut;
 
@@ -26,36 +26,31 @@ impl Settings {
 	/// catalog = "assets/localizations/localization.toml"
 	/// "#)?;
 	/// assert_eq!(settings.catalog.to_str(), Some("assets/localizations/localization.toml"));
-	/// # Ok::<(), String>(())
+	/// # Ok::<(), fluent_typed_codegen::ConfigError>(())
 	/// ```
-	pub fn from_manifest(source: &str) -> Result<Self, String> {
+	pub fn from_manifest(source: &str) -> Result<Self, ConfigError> {
 		let document = source
 			.parse::<DocumentMut>()
-			.map_err(|error| error.to_string())?;
+			.map_err(|source| ConfigError::Toml {
+				source: Box::new(source),
+			})?;
 		let table = document
 			.get("package")
 			.and_then(|item| item.get("metadata"))
 			.and_then(|item| item.get("localization"))
 			.and_then(|item| item.as_table())
-			.ok_or("missing [package.metadata.localization] in Cargo.toml")?;
-
-		let value = |key: &str| {
-			table
-				.get(key)
-				.and_then(|item| item.as_str())
-				.filter(|value| !value.trim().is_empty())
-				.map(str::to_owned)
-				.ok_or_else(|| format!("localization.{key} must be a nonempty string"))
-		};
+			.ok_or(ConfigError::MissingLocalizationTable)?;
 
 		let settings = Self {
-			catalog: value("catalog")?.into(),
+			catalog: string_field(table, ConfigField::Catalog)?.into(),
 		};
+
 		settings.validate()?;
+
 		Ok(settings)
 	}
 
-	pub(super) fn validate(&self) -> Result<(), String> {
+	pub(super) fn validate(&self) -> Result<(), ConfigError> {
 		paths::validate_catalog(&self.catalog)?;
 
 		if self
@@ -63,7 +58,11 @@ impl Settings {
 			.extension()
 			.is_none_or(|extension| extension != "toml")
 		{
-			return Err("localization.catalog must name a TOML configuration file".into());
+			return Err(ConfigError::InvalidPath {
+				field: ConfigField::Catalog,
+				path: self.catalog.clone(),
+				reason: PathError::ExpectedToml,
+			});
 		}
 
 		Ok(())

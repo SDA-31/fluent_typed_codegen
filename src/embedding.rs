@@ -1,5 +1,5 @@
 //! Build a deferred macro recipe; includes expand only at an explicit callsite.
-use crate::{discovery::CatalogSources, tree::Node};
+use crate::{BuildError, discovery::CatalogSources, tree::Node};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 
@@ -10,21 +10,14 @@ pub(super) struct Recipes<'a> {
 }
 
 impl<'a> Recipes<'a> {
-	pub fn new(sources: &'a CatalogSources) -> Result<Self, String> {
-		let directory = sources
-			.configuration
-			.languages_directory
-			.to_str()
-			.ok_or("translations-directory must be UTF-8")?;
+	pub fn new(sources: &'a CatalogSources) -> Result<Self, BuildError> {
+		let directory = BuildError::utf8(&sources.configuration.languages_directory)?;
 		let mut entries = Vec::new();
 
 		for module in &sources.modules {
 			let language = &module.language;
 			let path = &module.path;
-			let absolute = module
-				.absolute
-				.to_str()
-				.ok_or("module path must be UTF-8")?;
+			let absolute = BuildError::utf8(&module.absolute)?;
 			let entry =
 				quote!((#language, #path, ::std::include_bytes!(#absolute) as &'static [u8]));
 			entries.push((path.as_str(), entry));

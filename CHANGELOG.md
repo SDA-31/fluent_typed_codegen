@@ -11,11 +11,18 @@ See the [migration from 0.2.1](docs/migration-0.2.2.md).
 
 ### Added
 
+- Typed `ConfigError` and `BuildError` with recognized fields, path reasons,
+  filesystem operations, module differences and original parser/I/O/upstream causes.
+
 - Named `LocalizationManifest` constants through `embed_manifest! { ... }`,
   with relative schema selectors, visibility, attributes and multiple declarations.
 - Package-relative `catalog` paths may use `..` for shared translation sources.
 
 ### Changed
+
+- **Breaking:** configuration parsers and explicit generation entrypoints return
+  typed errors instead of `String`; `ManifestError` has typed configuration and
+  virtual-origin variants. `build() -> ExitCode` remains unchanged.
 
 - **Breaking:** Cargo metadata contains only `catalog`, relative to Cargo.toml;
   direct `Settings` and generated metadata no longer expose an asset root.

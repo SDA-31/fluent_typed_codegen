@@ -94,3 +94,15 @@ remain for the executable's lifetime even after a parsed catalog is dropped.
 
 Run your application tests after regeneration. See the [loading recipes](loading.md)
 for byte and file sources, and the [changelog](../CHANGELOG.md) for release details.
+
+## Typed configuration and build errors
+
+Configuration parsers now return `ConfigError`, and explicit generation functions
+return `BuildError` instead of `String`. The standard `build() -> ExitCode` call
+is unchanged. Update custom `Result<(), String>` signatures to the typed error,
+or convert to a string deliberately at the application boundary.
+
+`ManifestError::Config { source }` replaces string configuration/path diagnostics;
+`ManifestError::RequiresLoader { origin }` identifies virtual manifest origins.
+The error enums are non-exhaustive: include a wildcard arm in application matches.
+Underlying parser, I/O and upstream causes are retained through `Error::source()`.

@@ -40,6 +40,7 @@ fn catalog_configuration_ignores_extra_fields_and_validates_known_fields() {
 		assert!(
 			CatalogConfig::parse(&source.replace(valid, invalid))
 				.unwrap_err()
+				.to_string()
 				.contains(field)
 		);
 	}
@@ -48,6 +49,7 @@ fn catalog_configuration_ignores_extra_fields_and_validates_known_fields() {
 	assert!(
 		CatalogConfig::parse(&conflict)
 			.unwrap_err()
+			.to_string()
 			.contains("legacy alias")
 	);
 	let legacy = source.replace("translations-directory", "languages-directory");
@@ -211,7 +213,7 @@ fn logical_requests_and_manual_configuration_cannot_escape_their_root() {
 	] {
 		assert!(matches!(
 			manifest.read(locale, path),
-			Err(ManifestError::Invalid(_))
+			Err(ManifestError::Config { .. })
 		));
 	}
 
@@ -220,7 +222,7 @@ fn logical_requests_and_manual_configuration_cannot_escape_their_root() {
 	let manifest = LocalizationManifest::from_config(config, "missing/catalog.toml");
 	assert!(matches!(
 		manifest.read("en", "ui.ftl"),
-		Err(ManifestError::Invalid(_))
+		Err(ManifestError::Config { .. })
 	));
 	assert_eq!(
 		manifest.file_path(),
@@ -241,7 +243,7 @@ fn parsing_contract_performs_no_io_and_preserves_host_origin() {
 	assert!(manifest.embedded_modules().is_none());
 	assert!(matches!(
 		manifest.read("en", "ui.ftl"),
-		Err(ManifestError::Invalid(_))
+		Err(ManifestError::RequiresLoader { .. })
 	));
 }
 

@@ -11,6 +11,7 @@ static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(0);
 mod directories;
 mod documentation;
 mod embedding;
+mod errors;
 mod incremental;
 mod leaf_api;
 mod loading;
@@ -134,6 +135,7 @@ fn metadata_ignores_extra_fields_without_using_them_to_resolve_catalog() {
 	assert!(
 		Settings::from_manifest(&invalid)
 			.unwrap_err()
+			.to_string()
 			.contains("catalog")
 	);
 }
@@ -354,7 +356,9 @@ fn extension_reservations_and_output_paths_are_checked_before_writing() {
 		);
 	}
 
-	let error = crate::generate_with(&fixture.0, &output, &settings, &TestExtension).unwrap_err();
+	let error = crate::generate_with(&fixture.0, &output, &settings, &TestExtension)
+		.unwrap_err()
+		.to_string();
 	assert!(error.contains("reserved by the extension"), "{error}");
 	assert!(!output.exists());
 	generate(&fixture.0, &output, &settings).unwrap();
@@ -372,6 +376,7 @@ fn detects_missing_languages_modules_and_incompatible_contracts() {
 	assert!(
 		generate(&fixture.0, &output, &settings)
 			.unwrap_err()
+			.to_string()
 			.contains("ja")
 	);
 	fixture.write("data/strings/localization.toml", configuration());
@@ -383,6 +388,7 @@ fn detects_missing_languages_modules_and_incompatible_contracts() {
 	assert!(
 		generate(&fixture.0, &output, &settings)
 			.unwrap_err()
+			.to_string()
 			.contains("fr")
 	);
 
@@ -397,6 +403,7 @@ fn detects_missing_languages_modules_and_incompatible_contracts() {
 	assert!(
 		generate(&fixture.0, &output, &settings)
 			.unwrap_err()
+			.to_string()
 			.contains("module paths")
 	);
 }
@@ -410,7 +417,9 @@ fn renamed_translation_reports_missing_and_extra_paths_without_changing_sources(
 	fs::rename(&original, &renamed).unwrap();
 	let source = fs::read(&renamed).unwrap();
 	let output = fixture.0.join("target/generated");
-	let error = generate(&fixture.0, &output, &settings).unwrap_err();
+	let error = generate(&fixture.0, &output, &settings)
+		.unwrap_err()
+		.to_string();
 
 	assert!(error.contains("source-language `de`"));
 	assert!(error.contains("Missing in `fr`:"));
@@ -439,7 +448,9 @@ fn accepts_duplicate_keys_across_modules_but_rejects_them_inside_one_file() {
 		"data/strings/languages/de/duplicate.ftl",
 		"greeting = One\ngreeting = Two\n",
 	);
-	let error = generate(&fixture.0, &fixture.0.join("target/generated"), &settings).unwrap_err();
+	let error = generate(&fixture.0, &fixture.0.join("target/generated"), &settings)
+		.unwrap_err()
+		.to_string();
 	assert!(error.contains("duplicate Fluent key"), "{error}");
 }
 
@@ -453,6 +464,7 @@ fn rejects_missing_invalid_and_empty_configuration_files() {
 	assert!(
 		generate(&fixture.0, &output, &settings)
 			.unwrap_err()
+			.to_string()
 			.contains("localization.toml")
 	);
 
@@ -473,7 +485,7 @@ fn namespace_collisions_reserved_names_and_file_directory_ambiguity_are_actionab
 		(vec!["ui/self.ftl"], "cannot identify"),
 	] {
 		let paths: Vec<_> = paths.into_iter().map(String::from).collect();
-		let error = super::tree::Node::build(&paths).err().unwrap();
+		let error = super::tree::Node::build(&paths).err().unwrap().to_string();
 		assert!(error.contains(expected), "{error}");
 	}
 
@@ -509,7 +521,9 @@ fn cross_file_references_are_rejected_instead_of_silently_sharing_a_bundle() {
 		);
 	}
 
-	let error = generate(&fixture.0, &fixture.0.join("target/generated"), &settings).unwrap_err();
+	let error = generate(&fixture.0, &fixture.0.join("target/generated"), &settings)
+		.unwrap_err()
+		.to_string();
 	assert!(error.contains("second.ftl"), "{error}");
 	assert!(error.contains("title"), "{error}");
 }
@@ -520,7 +534,7 @@ fn local_reference_validation_covers_terms_attributes_missing_targets_and_cycles
 		"-brand = LEGAM\ntitle = { -brand }\n    .hint = Help\ncaption = { title.hint }\n",
 	)
 	.unwrap();
-	super::references::validate(&valid).unwrap();
+	super::references::validate(&valid, Path::new("test.ftl")).unwrap();
 
 	for (source, expected) in [
 		("caption = { -missing }\n", "-missing"),
@@ -529,7 +543,9 @@ fn local_reference_validation_covers_terms_attributes_missing_targets_and_cycles
 		("title = { title }\n", "cyclic"),
 	] {
 		let schema = crate::schema::schema(source).unwrap();
-		let error = super::references::validate(&schema).unwrap_err();
+		let error = super::references::validate(&schema, Path::new("test.ftl"))
+			.unwrap_err()
+			.to_string();
 		assert!(error.contains(expected), "{error}");
 	}
 }
@@ -548,7 +564,9 @@ fn configured_language_directory_cannot_bypass_symlink_checks() {
 		"data/strings/localization.toml",
 		&configuration().replace("\"languages\"", "\"alias\""),
 	);
-	let error = generate(&fixture.0, &fixture.0.join("target/generated"), &settings).unwrap_err();
+	let error = generate(&fixture.0, &fixture.0.join("target/generated"), &settings)
+		.unwrap_err()
+		.to_string();
 	assert!(error.contains("symbolic links"), "{error}");
 }
 
@@ -572,7 +590,9 @@ fn symlinked_languages_and_modules_cannot_bypass_discovery_or_recurse_forever() 
 		fixture.0.join("data/strings/languages/es"),
 	)
 	.unwrap();
-	let error = generate(&fixture.0, &fixture.0.join("target/generated"), &settings).unwrap_err();
+	let error = generate(&fixture.0, &fixture.0.join("target/generated"), &settings)
+		.unwrap_err()
+		.to_string();
 	assert!(error.contains("symbolic links"), "{error}");
 
 	let nested = Fixture::new();
@@ -582,6 +602,8 @@ fn symlinked_languages_and_modules_cannot_bypass_discovery_or_recurse_forever() 
 		nested.0.join("data/strings/languages/de/ui/loop"),
 	)
 	.unwrap();
-	let error = generate(&nested.0, &nested.0.join("target/generated"), &settings).unwrap_err();
+	let error = generate(&nested.0, &nested.0.join("target/generated"), &settings)
+		.unwrap_err()
+		.to_string();
 	assert!(error.contains("symbolic links"), "{error}");
 }

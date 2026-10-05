@@ -1,6 +1,44 @@
 //! Generated contract checks: translations may change words, not their typed API.
 use fluent_syntax::{ast, parser};
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+	collections::{BTreeMap, BTreeSet},
+	error::Error,
+	fmt,
+};
+
+/// Fluent syntax, duplicate key or contract mismatch.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum SchemaError {
+	/// Original parser failures with source byte ranges.
+	Parse(Vec<parser::ParserError>),
+	/// A message, term or attribute occurs more than once.
+	DuplicateKey(String),
+	/// Keys or referenced identifiers differ from the source contract.
+	ChangedKeys(Vec<String>),
+}
+
+impl fmt::Display for SchemaError {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		match self {
+			Self::Parse(errors) => write!(f, "{errors:?}"),
+			Self::DuplicateKey(key) => write!(f, "duplicate Fluent key: {key}"),
+			Self::ChangedKeys(keys) => write!(
+				f,
+				"Fluent keys/references changed; rebuild required: {keys:?}"
+			),
+		}
+	}
+}
+
+impl Error for SchemaError {
+	fn source(&self) -> Option<&(dyn Error + 'static)> {
+		match self {
+			Self::Parse(errors) => errors.first().map(|error| error as &(dyn Error + 'static)),
+			_ => None,
+		}
+	}
+}
 
 /// Message/term/attribute keys mapped to their variable, message, term and function references.
 ///
@@ -12,8 +50,8 @@ pub type Schema = BTreeMap<String, BTreeSet<String>>;
 ///
 /// # Errors
 /// Rejects Fluent syntax errors and duplicate keys.
-pub fn schema(source: &str) -> Result<Schema, String> {
-	let resource = parser::parse(source).map_err(|(_, errors)| format!("{errors:?}"))?;
+pub fn schema(source: &str) -> Result<Schema, SchemaError> {
+	let resource = parser::parse(source).map_err(|(_, errors)| SchemaError::Parse(errors))?;
 	let mut result = Schema::new();
 
 	for entry in resource.body {
@@ -49,12 +87,16 @@ pub fn schema(source: &str) -> Result<Schema, String> {
 	Ok(result)
 }
 
-fn insert(result: &mut Schema, key: String, pattern: &ast::Pattern<&str>) -> Result<(), String> {
+fn insert(
+	result: &mut Schema,
+	key: String,
+	pattern: &ast::Pattern<&str>,
+) -> Result<(), SchemaError> {
 	let mut refs = BTreeSet::new();
 	visit_pattern(pattern, &mut refs);
 
 	if result.insert(key.clone(), refs).is_some() {
-		return Err(format!("duplicate Fluent key: {key}"));
+		return Err(SchemaError::DuplicateKey(key));
 	}
 
 	Ok(())
@@ -139,14 +181,14 @@ fn visit_arguments(arguments: &ast::CallArguments<&str>, refs: &mut BTreeSet<Str
 /// assert!(validate("hello = Hola { $name }", "hello = Hello { $name }").is_ok());
 /// assert!(validate("hello = Hi { $who }", "hello = Hello { $name }").is_err());
 /// ```
-pub fn validate(candidate: &str, expected: &str) -> Result<(), String> {
+pub fn validate(candidate: &str, expected: &str) -> Result<(), SchemaError> {
 	let candidate = schema(candidate)?;
 	let expected = schema(expected)?;
 
 	compare(&candidate, &expected)
 }
 
-fn compare(candidate: &Schema, expected: &Schema) -> Result<(), String> {
+fn compare(candidate: &Schema, expected: &Schema) -> Result<(), SchemaError> {
 	if candidate == expected {
 		return Ok(());
 	}
@@ -155,13 +197,12 @@ fn compare(candidate: &Schema, expected: &Schema) -> Result<(), String> {
 		.keys()
 		.chain(candidate.keys())
 		.filter(|key| expected.get(*key) != candidate.get(*key))
+		.cloned()
 		.collect::<BTreeSet<_>>()
 		.into_iter()
 		.collect();
 
-	Err(format!(
-		"Fluent keys/references changed; rebuild required: {changed:?}"
-	))
+	Err(SchemaError::ChangedKeys(changed))
 }
 
 /// Check a candidate against a build-prepared key/reference fingerprint.
@@ -172,7 +213,7 @@ fn compare(candidate: &Schema, expected: &Schema) -> Result<(), String> {
 /// Rejects invalid syntax, duplicate keys or changed keys/references.
 // This function is copied into generated runtime code, rather than called by the host.
 #[allow(dead_code)]
-pub fn validate_schema(candidate: &str, expected: &[(&str, &[&str])]) -> Result<(), String> {
+pub fn validate_schema(candidate: &str, expected: &[(&str, &[&str])]) -> Result<(), SchemaError> {
 	let candidate = schema(candidate)?;
 	let expected: Schema = expected
 		.iter()
