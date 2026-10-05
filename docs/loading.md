@@ -24,7 +24,7 @@ accessor never opens a file or loads another module.
 First replace only the `fluent_typed_codegen` entry under `[dependencies]` with:
 
 ```toml
-fluent_typed_codegen = { version = "0.3.0", default-features = false, features = ["manifest"] }
+fluent_typed_codegen = { version = "0.2.2", default-features = false, features = ["manifest"] }
 ```
 
 Keep the `[build-dependencies]` entry unchanged. The `manifest` feature enables
@@ -150,7 +150,7 @@ Embedding needs no `manifest` feature and performs no runtime filesystem reads.
 The macro uses the manifest already processed by `build.rs`; it takes no runtime
 path or `LocalizationManifest` value.
 
-Use generator 0.3.0 in both normal and build dependencies for this recipe.
+Use generator 0.2.2 in both normal and build dependencies for this recipe.
 
 ```rust
 fluent_typed_codegen::translations!(pub mod texts);

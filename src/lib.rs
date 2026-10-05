@@ -5,7 +5,7 @@
 //! for installation, and the
 //! [migration guide](https://github.com/SDA-31/fluent_typed_codegen/blob/main/docs/migration-0.2.md)
 //! when upgrading from 0.1.4. For 0.2.1 applications, see the
-//! [0.3.0 migration](https://github.com/SDA-31/fluent_typed_codegen/blob/main/docs/migration-0.3.md).
+//! [0.2.2 migration](https://github.com/SDA-31/fluent_typed_codegen/blob/main/docs/migration-0.2.2.md).
 //!
 //! Language directories are discovered automatically. FTL file paths become
 //! named Rust types, and message parameters become typed accessor arguments.

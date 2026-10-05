@@ -1,4 +1,4 @@
-# Migrate from fluent_typed_codegen 0.2.1 to 0.3.0
+# Migrate from fluent_typed_codegen 0.2.1 to 0.2.2
 
 Typed message accessors and catalog constructors keep their signatures. Update
 build configuration and selective embedding before rebuilding your application.
@@ -7,10 +7,10 @@ build configuration and selective embedding before rebuilding your application.
 
 ```toml
 [dependencies]
-fluent_typed_codegen = { version = "0.3.0", default-features = false }
+fluent_typed_codegen = { version = "0.2.2", default-features = false }
 
 [build-dependencies]
-fluent_typed_codegen = { version = "0.3.0", default-features = false, features = ["build"] }
+fluent_typed_codegen = { version = "0.2.2", default-features = false, features = ["build"] }
 ```
 
 Keep your existing `fluent-typed`, `fluent-syntax` and optional `manifest` feature.

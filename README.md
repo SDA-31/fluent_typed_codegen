@@ -72,10 +72,10 @@ edition = "2024"
 rust-version = "1.95"
 
 [build-dependencies]
-fluent_typed_codegen = { version = "0.3.0", default-features = false, features = ["build"] }
+fluent_typed_codegen = { version = "0.2.2", default-features = false, features = ["build"] }
 
 [dependencies]
-fluent_typed_codegen = { version = "0.3.0", default-features = false }
+fluent_typed_codegen = { version = "0.2.2", default-features = false }
 fluent-typed = { version = "0.9.0", default-features = false, features = ["langneg"] }
 fluent-syntax = "0.12"
 
@@ -301,7 +301,7 @@ enters the binary. Static embedded bytes outlive dropped parsed catalogs. The ge
 macro is crate-local, including inside a `pub mod texts`; a library can expose
 its own manifest constant alongside catalog aliases.
 
-Upgrading from 0.2.1? Follow the [0.3.0 migration](docs/migration-0.3.md).
+Upgrading from 0.2.1? Follow the [0.2.2 migration](docs/migration-0.2.2.md).
 
 Upgrading from 0.1.4? Follow the [migration guide](docs/migration-0.2.md)
 for before/after constructors, error handling, metadata and manual includes.
@@ -447,8 +447,8 @@ implement a rendering engine.
 
 | Symptom | What to check |
 | --- | --- |
-| `Hud::new`, `from_manifest` or `embed_manifest!` is missing | Use version 0.3.0 from [Setup](#setup) in **both** Cargo sections. Published 0.1.4 uses the previous API. |
-| `embed_manifest!` rejects a constant declaration | Use 0.3.0 in both normal and build dependencies. Selectors are relative schema paths, not application aliases. |
+| `Hud::new`, `from_manifest` or `embed_manifest!` is missing | Use version 0.2.2 from [Setup](#setup) in **both** Cargo sections. Published 0.1.4 uses the previous API. |
+| `embed_manifest!` rejects a constant declaration | Use 0.2.2 in both normal and build dependencies. Selectors are relative schema paths, not application aliases. |
 | `translations!` cannot find `OUT_DIR` or `translations.rs` | Add the [build.rs](#2-run-generation-from-buildrs) beside the application's Cargo.toml and enable `build` on its build dependency. Resolve any earlier generation error first. |
 | `LocalizationManifest::from_file` or `parse` is missing | Enable `manifest` on the **normal** dependency, as in the [file recipe](docs/loading.md#read-files-through-a-manifest). A build dependency's features do not enable runtime APIs. |
 | Generated code cannot resolve `fluent_typed` or `fluent_syntax` | Keep `fluent-typed` and `fluent-syntax` under those canonical dependency names in the application's `[dependencies]`. |

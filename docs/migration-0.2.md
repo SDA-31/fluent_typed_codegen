@@ -1,6 +1,6 @@
-# Migrate from fluent_typed_codegen 0.1.4 to 0.3.0
+# Migrate from fluent_typed_codegen 0.1.4 to 0.2.2
 
-This guide upgrades an application using the 0.1.4 API to 0.3.0.
+This guide upgrades an application using the 0.1.4 API to 0.2.2.
 
 The smallest migration keeps your full translation tree and typed message calls.
 Only initialization, error handling and code that reads embedded metadata change.
@@ -14,12 +14,12 @@ in [Catalog-only build configuration](#catalog-only-build-configuration):
 
 ```toml
 [dependencies]
-fluent_typed_codegen = { version = "0.3.0", default-features = false }
+fluent_typed_codegen = { version = "0.2.2", default-features = false }
 fluent-typed = { version = "0.9.0", default-features = false, features = ["langneg"] }
 fluent-syntax = "0.12"
 
 [build-dependencies]
-fluent_typed_codegen = { version = "0.3.0", default-features = false, features = ["build"] }
+fluent_typed_codegen = { version = "0.2.2", default-features = false, features = ["build"] }
 ```
 
 Remove development Git/path overrides for this package when switching to the
@@ -120,7 +120,7 @@ validation-only use and loading every known language.
 
 ## 4. Update metadata and custom integrations
 
-| 0.1.4 usage | 0.3.0 replacement |
+| 0.1.4 usage | 0.2.2 replacement |
 | --- | --- |
 | `MODULES: &[(&str, &str, &str)]` | `MODULES: &[(&str, &str)]`: locale and logical path only |
 | Read FTL from the third tuple field | Obtain readable data from your storage or an explicit manifest |
@@ -173,5 +173,5 @@ settings, keep only `Settings { catalog: ... }`. Generated `CATALOG_PATH` replac
 `..` to share source translations across packages. Runtime logical module paths
 and `translations-directory` still cannot escape their declared scope.
 
-Use generator and runtime 0.3.0 together. See the
-[0.2.1 to 0.3.0 migration](migration-0.3.md) for the complete metadata and embedding changes.
+Use generator and runtime 0.2.2 together. See the
+[0.2.1 to 0.2.2 migration](migration-0.2.2.md) for the complete metadata and embedding changes.
