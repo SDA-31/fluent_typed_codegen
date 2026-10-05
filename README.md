@@ -61,10 +61,8 @@ cargo new localization-demo --edition 2024
 cd localization-demo
 ```
 
-Replace its `Cargo.toml` with the complete file below, then add the
-[local checkout override](#work-on-local-checkouts) for this API. The build
-dependency generates the API; the normal dependency includes it and supplies
-the manifest type.
+Replace its `Cargo.toml` with this complete file. The build dependency generates
+the API; the normal dependency includes it and supplies the manifest type.
 
 ```toml
 [package]
@@ -74,10 +72,10 @@ edition = "2024"
 rust-version = "1.95"
 
 [build-dependencies]
-fluent_typed_codegen = { version = "0.2.1", default-features = false, features = ["build"] }
+fluent_typed_codegen = { version = "0.3.0", default-features = false, features = ["build"] }
 
 [dependencies]
-fluent_typed_codegen = { version = "0.2.1", default-features = false }
+fluent_typed_codegen = { version = "0.3.0", default-features = false }
 fluent-typed = { version = "0.9.0", default-features = false, features = ["langneg"] }
 fluent-syntax = "0.12"
 
@@ -276,8 +274,7 @@ origin)` accepts already obtained TOML without I/O. `config`, `file_path` and
 inspection without parsing. Runtime paths need not match build-time paths.
 
 Explicit embedding uses a build-prepared recipe; the schema-generation step stays
-in `build.rs`. For the constant-declaration recipe below, configure a
-[local generator checkout](#work-on-local-checkouts) first. See the
+in `build.rs`. See the
 [complete recipe](docs/loading.md#embed-one-module).
 
 ```rust
@@ -303,6 +300,8 @@ selects the whole tree. Runtime construction decides what gets parsed, not what
 enters the binary. Static embedded bytes outlive dropped parsed catalogs. The generated
 macro is crate-local, including inside a `pub mod texts`; a library can expose
 its own manifest constant alongside catalog aliases.
+
+Upgrading from 0.2.1? Follow the [0.3.0 migration](docs/migration-0.3.md).
 
 Upgrading from 0.1.4? Follow the [migration guide](docs/migration-0.2.md)
 for before/after constructors, error handling, metadata and manual includes.
@@ -448,8 +447,8 @@ implement a rendering engine.
 
 | Symptom | What to check |
 | --- | --- |
-| `Hud::new`, `from_manifest` or `embed_manifest!` is missing | Use version 0.2.1 from [Setup](#setup) in **both** Cargo sections. Published 0.1.4 uses the previous API. |
-| `embed_manifest!` rejects a constant declaration | Use the [local checkout setup](#work-on-local-checkouts) for this recipe, keeping build and runtime on the same generator revision. Selectors are relative schema paths, not application aliases. |
+| `Hud::new`, `from_manifest` or `embed_manifest!` is missing | Use version 0.3.0 from [Setup](#setup) in **both** Cargo sections. Published 0.1.4 uses the previous API. |
+| `embed_manifest!` rejects a constant declaration | Use 0.3.0 in both normal and build dependencies. Selectors are relative schema paths, not application aliases. |
 | `translations!` cannot find `OUT_DIR` or `translations.rs` | Add the [build.rs](#2-run-generation-from-buildrs) beside the application's Cargo.toml and enable `build` on its build dependency. Resolve any earlier generation error first. |
 | `LocalizationManifest::from_file` or `parse` is missing | Enable `manifest` on the **normal** dependency, as in the [file recipe](docs/loading.md#read-files-through-a-manifest). A build dependency's features do not enable runtime APIs. |
 | Generated code cannot resolve `fluent_typed` or `fluent_syntax` | Keep `fluent-typed` and `fluent-syntax` under those canonical dependency names in the application's `[dependencies]`. |
@@ -576,7 +575,7 @@ These commands work from a standalone generator checkout. Add `--locked --offlin
 after the first dependency resolution. The local lockfile and target directory
 are ignored; a consuming workspace owns its own lockfile.
 The [bundled example](examples/minimal/README.md) uses repository-local paths for
-development; external applications follow Setup with its matching checkout override.
+development; external applications use the registry dependencies in Setup.
 
 ### Work on local checkouts
 
@@ -591,8 +590,8 @@ fluent_typed_codegen = { path = "/absolute/path/to/fluent_typed_codegen" }
 Use the checkout containing the API you are testing. The patch applies to both
 normal and build dependencies, so generated code and runtime macros stay aligned.
 In a Cargo workspace, put it in the workspace root. The bundled example already
-uses matching path dependencies and needs no patch. For the published API, see
-the [versioned package documentation](https://docs.rs/fluent_typed_codegen/0.2.1/fluent_typed_codegen/).
+uses matching path dependencies and needs no patch. Released consumers need
+only the registry dependency declarations from Setup.
 
 ## Continuous integration
 

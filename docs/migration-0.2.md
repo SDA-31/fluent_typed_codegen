@@ -1,6 +1,6 @@
-# Migrate from fluent_typed_codegen 0.1.4 to 0.2.1
+# Migrate from fluent_typed_codegen 0.1.4 to 0.3.0
 
-This guide upgrades an application using the 0.1.4 API to 0.2.1.
+This guide upgrades an application using the 0.1.4 API to 0.3.0.
 
 The smallest migration keeps your full translation tree and typed message calls.
 Only initialization, error handling and code that reads embedded metadata change.
@@ -9,16 +9,17 @@ Module-by-module loading is optional.
 ## 1. Update both dependency sections
 
 Replace the generator entries in your application's Cargo.toml. Keep your
-localization metadata, FTL layout and the two Fluent runtime dependencies:
+FTL layout and the two Fluent runtime dependencies. Update metadata as shown
+in [Catalog-only build configuration](#catalog-only-build-configuration):
 
 ```toml
 [dependencies]
-fluent_typed_codegen = { version = "0.2.1", default-features = false }
+fluent_typed_codegen = { version = "0.3.0", default-features = false }
 fluent-typed = { version = "0.9.0", default-features = false, features = ["langneg"] }
 fluent-syntax = "0.12"
 
 [build-dependencies]
-fluent_typed_codegen = { version = "0.2.1", default-features = false, features = ["build"] }
+fluent_typed_codegen = { version = "0.3.0", default-features = false, features = ["build"] }
 ```
 
 Remove development Git/path overrides for this package when switching to the
@@ -66,9 +67,8 @@ selected language. Generation alone embeds no FTL. Static embedded bytes remain
 in the executable for its lifetime, even when parsed catalogs are dropped.
 There is no compressor/decompressor callback.
 
-This migration uses the no-argument macro supported by the selected registry
-version. For selective constant manifests when working on the generator itself,
-follow the separate [source-checkout recipe](loading.md#embed-one-module).
+The no-argument macro selects the complete tree. For named constants, follow the
+[selective embedding recipe](loading.md#embed-one-module).
 
 ## 3. Keep your storage or choose files
 
@@ -120,7 +120,7 @@ validation-only use and loading every known language.
 
 ## 4. Update metadata and custom integrations
 
-| 0.1.4 usage | 0.2.1 replacement |
+| 0.1.4 usage | 0.3.0 replacement |
 | --- | --- |
 | `MODULES: &[(&str, &str, &str)]` | `MODULES: &[(&str, &str)]`: locale and logical path only |
 | Read FTL from the third tuple field | Obtain readable data from your storage or an explicit manifest |
@@ -158,7 +158,7 @@ automatic eviction or eliminate upstream input copying/reparsing.
 
 ## Catalog-only build configuration
 
-For the current source-checkout API, merge the previous `asset-root` and
+Merge the previous `asset-root` and
 `catalog` values into one path relative to the package's `Cargo.toml`:
 
 ```toml
@@ -173,5 +173,5 @@ settings, keep only `Settings { catalog: ... }`. Generated `CATALOG_PATH` replac
 `..` to share source translations across packages. Runtime logical module paths
 and `translations-directory` still cannot escape their declared scope.
 
-This build-API change requires matching source checkouts; published 0.2.1 still
-uses the previous configuration. No release archive changes retroactively.
+Use generator and runtime 0.3.0 together. See the
+[0.2.1 to 0.3.0 migration](migration-0.3.md) for the complete metadata and embedding changes.
