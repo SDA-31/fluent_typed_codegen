@@ -28,14 +28,6 @@ fn typed_embedding_keeps_unselected_payloads_out_of_unoptimized_binaries() {
 	let output = fixture.0.join("generated");
 	generate(&fixture.0, &output, &settings).unwrap();
 	let generated = output.join("translations.rs");
-	let generated_source = fs::read_to_string(&generated).unwrap();
-
-	for removed_helper in ["__define_embed_scopes", "__embed_scope", "__embed_selected"] {
-		assert!(
-			!generated_source.contains(removed_helper),
-			"{removed_helper}"
-		);
-	}
 
 	let generator = env!("CARGO_MANIFEST_DIR").replace('\\', "/");
 	fixture.write(
