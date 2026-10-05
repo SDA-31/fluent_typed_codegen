@@ -180,7 +180,21 @@ fn generate_inner(
 	let message_types = message_types::discover(&paths, &output)?;
 	message_types::validate(&tree, &message_types)?;
 	// A single maintained checker serves discovery and generated checked APIs.
-	let validation = include_str!("schema.rs").replacen("//!", "//", 1).replacen(
+	let validation = format!(
+		"{}\n{}",
+		include_str!("errors/schema.rs").replacen("//!", "//", 1),
+		include_str!("schema.rs").replacen("//!", "//", 1).replacen(
+			"use crate::SchemaError;",
+			"",
+			1
+		),
+	)
+	.replacen(
+		"use fluent_syntax::parser::ParserError;",
+		"use super::fluent_syntax::parser::ParserError;",
+		1,
+	)
+	.replacen(
 		"use fluent_syntax::{ast, parser};",
 		"use super::fluent_syntax::{ast, parser};",
 		1,

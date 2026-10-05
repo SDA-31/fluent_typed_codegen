@@ -176,21 +176,18 @@ mod manifest;
 #[cfg(test)]
 mod manifest_tests;
 
-pub use manifest::{LocalizationManifest, ManifestError};
+pub use manifest::LocalizationManifest;
 
 #[cfg(feature = "build")]
-mod build_error;
-#[cfg(feature = "build")]
 mod build_io;
+mod errors;
 #[cfg(feature = "build")]
-pub use build_error::{
-	BuildError, IoOperation, ModuleMismatch, NameError, NameOwner, SyntaxNode, UpstreamShapeError,
+pub use errors::{
+	BuildError, IoOperation, ModuleMismatch, NameError, NameOwner, SchemaError, SyntaxNode,
+	UpstreamShapeError,
 };
-#[cfg(feature = "build")]
-pub use schema::SchemaError;
-mod config_error;
 mod configuration;
-pub use config_error::{ConfigError, ConfigField, FieldError, PathError};
+pub use errors::{ConfigError, ConfigField, FieldError, ManifestError, PathError};
 #[cfg(feature = "build")]
 mod diagnostics;
 #[cfg(feature = "build")]
