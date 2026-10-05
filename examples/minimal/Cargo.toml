@@ -8,8 +8,7 @@ license = "MIT"
 publish = false
 
 [package.metadata.localization]
-asset-root = "assets"
-catalog = "localizations/localization.toml"
+catalog = "assets/localizations/localization.toml"
 
 [dependencies]
 l10n = { package = "fluent_typed_codegen", path = "../..", default-features = false }

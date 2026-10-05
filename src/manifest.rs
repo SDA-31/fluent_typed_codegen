@@ -1,11 +1,11 @@
 //! Immutable source contracts, independent of any engine or loader.
-use crate::{CatalogConfig, paths};
+use crate::{CatalogConfig, ConfigError, ConfigField, ManifestError, PathError, paths};
 use std::{
 	borrow::Cow,
 	collections::HashMap,
-	fmt, fs, io,
+	fs,
 	path::{Path, PathBuf},
-	sync::{Arc, OnceLock},
+	sync::{Arc, LazyLock, OnceLock},
 };
 
 type EmbeddedModules = &'static [(&'static str, &'static str, &'static [u8])];
@@ -31,56 +31,18 @@ enum Source {
 		modules: EmbeddedModules,
 		index: Arc<OnceLock<EmbeddedIndex>>,
 	},
-}
-
-/// A manifest or requested module could not be obtained.
-#[derive(Debug)]
-pub enum ManifestError {
-	/// File reading failed, retaining its path and original error.
-	Io {
-		/// Requested filesystem path.
-		path: PathBuf,
-		/// Original I/O error.
-		source: io::Error,
+	StaticEmbedded {
+		config: &'static LazyLock<CatalogConfig>,
+		modules: EmbeddedModules,
 	},
-	/// Invalid TOML, configuration or logical module/locale path.
-	Invalid(String),
-	/// The explicit embedded set does not contain a requested module.
-	MissingModule {
-		/// Requested locale code.
-		locale: String,
-		/// Requested logical module path.
-		path: String,
-	},
-}
-
-impl fmt::Display for ManifestError {
-	fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-		match self {
-			Self::Io { path, source } => write!(formatter, "{}: {source}", path.display()),
-			Self::Invalid(message) => formatter.write_str(message),
-			Self::MissingModule { locale, path } => {
-				write!(formatter, "missing module: {locale}/{path}")
-			}
-		}
-	}
-}
-
-impl std::error::Error for ManifestError {
-	fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-		match self {
-			Self::Io { source, .. } => Some(source),
-			_ => None,
-		}
-	}
 }
 
 impl LocalizationManifest {
 	/// Read only the TOML manifest, retaining its path for later module reads.
 	///
 	/// Relative paths use the process's current directory. Pass the installed
-	/// manifest path in a packaged application; Cargo's asset root is a build-time
-	/// setting and is not consulted by this method.
+	/// manifest path in a packaged application; the build-time Cargo catalog setting
+	/// is not consulted by this method.
 	///
 	/// # Errors
 	/// Returns I/O or configuration diagnostics. FTL files are not accessed here.
@@ -103,7 +65,8 @@ impl LocalizationManifest {
 	/// Returns TOML or configuration diagnostics.
 	#[cfg(feature = "manifest")]
 	pub fn parse(source: &str, origin: impl Into<PathBuf>) -> Result<Self, ManifestError> {
-		let config = CatalogConfig::parse(source).map_err(ManifestError::Invalid)?;
+		let config =
+			CatalogConfig::parse(source).map_err(|source| ManifestError::Config { source })?;
 		Ok(Self::from_config(config, origin))
 	}
 
@@ -129,7 +92,9 @@ impl LocalizationManifest {
 	/// Explicitly embedded entries, for inspection or host-owned loading.
 	pub fn embedded_modules(&self) -> Option<EmbeddedModules> {
 		match &self.source {
-			Source::Embedded { modules, .. } => Some(*modules),
+			Source::Embedded { modules, .. } | Source::StaticEmbedded { modules, .. } => {
+				Some(*modules)
+			}
 			_ => None,
 		}
 	}
@@ -138,6 +103,7 @@ impl LocalizationManifest {
 	pub fn config(&self) -> &CatalogConfig {
 		match &self.source {
 			Source::File { config, .. } | Source::Embedded { config, .. } => config,
+			Source::StaticEmbedded { config, .. } => config,
 		}
 	}
 
@@ -145,8 +111,10 @@ impl LocalizationManifest {
 	///
 	/// File data is owned; embedded data is borrowed. Locale and module are logical
 	/// paths, not storage addresses. Engine integrations should use their own I/O.
-	/// The first embedded read indexes entry metadata; clones share that index.
-	/// Building it does not copy or parse the embedded FTL payloads.
+	/// Generated embedded constants use sorted static entries directly, without
+	/// allocating an index. Their configuration is initialized once on `config()`.
+	/// Expression-based embedding indexes entry metadata on its first read; clones
+	/// share that index. Neither path copies or parses the embedded FTL payloads.
 	///
 	/// # Errors
 	/// Rejects invalid paths, missing embedded entries and I/O failures.
@@ -159,13 +127,17 @@ impl LocalizationManifest {
 				config,
 			} => {
 				if origin.to_string_lossy().contains("://") {
-					return Err(ManifestError::Invalid(
-						"virtual manifest origins require their host loader".into(),
-					));
+					return Err(ManifestError::RequiresLoader {
+						origin: origin.clone(),
+					});
 				}
 
-				paths::validate_relative(&config.languages_directory, "translations-directory")
-					.map_err(ManifestError::Invalid)?;
+				paths::validate_relative(
+					&config.languages_directory,
+					ConfigField::TranslationsDirectory,
+				)
+				.map_err(|source| ManifestError::Config { source })?;
+
 				let path = origin
 					.parent()
 					.unwrap_or_else(|| Path::new(""))
@@ -194,6 +166,13 @@ impl LocalizationManifest {
 				.and_then(|modules| modules.get(path))
 				.map(|bytes| Cow::Borrowed(*bytes))
 				.ok_or_else(|| ManifestError::MissingModule {
+					locale: locale.into(),
+					path: path.into(),
+				}),
+			Source::StaticEmbedded { modules, .. } => modules
+				.binary_search_by(|&(language, module, _)| (language, module).cmp(&(locale, path)))
+				.map(|index| Cow::Borrowed(modules[index].2))
+				.map_err(|_| ManifestError::MissingModule {
 					locale: locale.into(),
 					path: path.into(),
 				}),
@@ -233,16 +212,44 @@ impl LocalizationManifest {
 			},
 		}
 	}
+
+	/// Construct a generated constant from unique entries sorted by locale and path.
+	/// Configuration metadata is shared across uses; no runtime lookup index is kept.
+	#[doc(hidden)]
+	pub const fn __embedded_static(
+		modules: EmbeddedModules,
+		config: &'static LazyLock<CatalogConfig>,
+	) -> Self {
+		Self {
+			source: Source::StaticEmbedded { config, modules },
+		}
+	}
 }
 
 fn validate_request(locale: &str, path: &str) -> Result<(), ManifestError> {
-	paths::validate_relative(Path::new(locale), "locale").map_err(ManifestError::Invalid)?;
-	paths::validate_relative(Path::new(path), "module").map_err(ManifestError::Invalid)?;
+	paths::validate_relative(Path::new(locale), ConfigField::Locale)
+		.map_err(|source| ManifestError::Config { source })?;
+	paths::validate_relative(Path::new(path), ConfigField::Module)
+		.map_err(|source| ManifestError::Config { source })?;
 
-	if locale == "." || locale.contains('/') || !path.ends_with(".ftl") {
-		return Err(ManifestError::Invalid(
-			"expected one locale component and a logical .ftl path".into(),
-		));
+	if locale == "." || locale.contains('/') {
+		return Err(ManifestError::Config {
+			source: ConfigError::InvalidPath {
+				field: ConfigField::Locale,
+				path: locale.into(),
+				reason: PathError::ExpectedLocaleComponent,
+			},
+		});
+	}
+
+	if !path.ends_with(".ftl") {
+		return Err(ManifestError::Config {
+			source: ConfigError::InvalidPath {
+				field: ConfigField::Module,
+				path: path.into(),
+				reason: PathError::ExpectedFtl,
+			},
+		});
 	}
 
 	Ok(())

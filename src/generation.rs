@@ -1,10 +1,10 @@
 //! Generate accessors and metadata in Cargo OUT_DIR or an explicit output directory.
 use crate::{
-	Extension, diagnostics, discovery::discover, message_types, metadata, render,
-	settings::Settings, source, tree::Node, upstream,
+	BuildError, Extension, build_io, diagnostics, discovery::discover, message_types, metadata,
+	render, settings::Settings, source, tree::Node, upstream,
 };
 use std::{
-	env, fs,
+	env,
 	path::{Path, PathBuf},
 	process::ExitCode,
 };
@@ -44,12 +44,12 @@ pub fn build_with(extension: &dyn Extension) -> ExitCode {
 /// for the standard build.rs entrypoint, without `expect` or panic output.
 ///
 /// ```no_run
-/// # fn main() -> Result<(), String> {
+/// # fn main() -> Result<(), fluent_typed_codegen::BuildError> {
 /// fluent_typed_codegen::from_cargo()?;
 /// # Ok(())
 /// # }
 /// ```
-pub fn from_cargo() -> Result<(), String> {
+pub fn from_cargo() -> Result<(), BuildError> {
 	cargo_generation(None)
 }
 
@@ -58,18 +58,26 @@ pub fn from_cargo() -> Result<(), String> {
 /// # Errors
 /// Returns configuration, catalog, extension-name, unsupported extension-syntax
 /// or I/O diagnostics. Extension-hook panics propagate to the caller.
-pub fn from_cargo_with(extension: &dyn Extension) -> Result<(), String> {
+pub fn from_cargo_with(extension: &dyn Extension) -> Result<(), BuildError> {
 	cargo_generation(Some(extension))
 }
 
-fn cargo_generation(extension: Option<&dyn Extension>) -> Result<(), String> {
-	let package =
-		PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").ok_or("CARGO_MANIFEST_DIR is unset")?);
-	let output = PathBuf::from(env::var_os("OUT_DIR").ok_or("OUT_DIR is unset")?);
+fn cargo_generation(extension: Option<&dyn Extension>) -> Result<(), BuildError> {
+	let package = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").ok_or(
+		BuildError::Environment {
+			variable: "CARGO_MANIFEST_DIR",
+		},
+	)?);
+	let output = PathBuf::from(env::var_os("OUT_DIR").ok_or(BuildError::Environment {
+		variable: "OUT_DIR",
+	})?);
 	let manifest_path = package.join("Cargo.toml");
 	println!("cargo::rerun-if-changed={}", manifest_path.display());
-	let manifest = fs::read_to_string(&manifest_path).map_err(|error| error.to_string())?;
-	let settings = Settings::from_manifest(&manifest)?;
+	let manifest = build_io::read_to_string(&manifest_path)?;
+	let settings = Settings::from_manifest(&manifest).map_err(|source| BuildError::Config {
+		path: Some(manifest_path),
+		source,
+	})?;
 	generate_inner(&package, &output, &settings, extension)
 }
 
@@ -95,7 +103,7 @@ fn cargo_generation(extension: Option<&dyn Extension>) -> Result<(), String> {
 /// module names, unresolved/cyclic local references, invalid typed Fluent or I/O
 /// failures. Cross-file Fluent references are not supported. Output is not
 /// transactional; discard failed generation results.
-pub fn generate(package: &Path, output: &Path, settings: &Settings) -> Result<(), String> {
+pub fn generate(package: &Path, output: &Path, settings: &Settings) -> Result<(), BuildError> {
 	generate_inner(package, output, settings, None)
 }
 
@@ -109,7 +117,7 @@ pub fn generate_with(
 	output: &Path,
 	settings: &Settings,
 	extension: &dyn Extension,
-) -> Result<(), String> {
+) -> Result<(), BuildError> {
 	generate_inner(package, output, settings, Some(extension))
 }
 
@@ -118,7 +126,7 @@ fn generate_inner(
 	output: &Path,
 	settings: &Settings,
 	extension: Option<&dyn Extension>,
-) -> Result<(), String> {
+) -> Result<(), BuildError> {
 	if let Some(extension) = extension {
 		let filename = extension.filename();
 		let path = Path::new(filename);
@@ -130,11 +138,13 @@ fn generate_inner(
 				filename,
 				"translations.rs" | "locale_modules.rs" | "validation.rs"
 			) {
-			return Err(format!("invalid extension output filename: {filename:?}"));
+			return Err(BuildError::InvalidExtensionFilename {
+				filename: filename.into(),
+			});
 		}
 	}
 
-	let package = package.canonicalize().map_err(|error| error.to_string())?;
+	let package = build_io::canonicalize(package)?;
 	let sources = discover(&package, settings)?;
 	let paths: Vec<_> = sources
 		.modules
@@ -156,45 +166,56 @@ fn generate_inner(
 		println!("cargo::rerun-if-changed={}", module.absolute.display());
 	}
 
-	fs::create_dir_all(output).map_err(|error| error.to_string())?;
-	let output = output.canonicalize().map_err(|error| error.to_string())?;
+	build_io::create_dir_all(output)?;
+	let output = build_io::canonicalize(output)?;
 
-	fs::write(
+	build_io::write(
 		output.join("locale_modules.rs"),
 		source::format(
 			metadata::render(settings, &sources, &config_path)?,
 			"locale_modules.rs",
 		)?,
-	)
-	.map_err(|error| error.to_string())?;
+	)?;
 	upstream::generate(&sources, &paths, &output)?;
 	let message_types = message_types::discover(&paths, &output)?;
 	message_types::validate(&tree, &message_types)?;
 	// A single maintained checker serves discovery and generated checked APIs.
-	let validation = include_str!("schema.rs").replacen("//!", "//", 1).replacen(
+	let validation = format!(
+		"{}\n{}",
+		include_str!("errors/schema.rs").replacen("//!", "//", 1),
+		include_str!("schema.rs").replacen("//!", "//", 1).replacen(
+			"use crate::SchemaError;",
+			"",
+			1
+		),
+	)
+	.replacen(
+		"use fluent_syntax::parser::ParserError;",
+		"use super::fluent_syntax::parser::ParserError;",
+		1,
+	)
+	.replacen(
 		"use fluent_syntax::{ast, parser};",
 		"use super::fluent_syntax::{ast, parser};",
 		1,
 	);
-	fs::write(output.join("validation.rs"), validation).map_err(|error| error.to_string())?;
-	fs::write(
+	build_io::write(output.join("validation.rs"), validation)?;
+	build_io::write(
 		output.join("translations.rs"),
 		source::format(
 			render::render(&tree, &sources, &message_types, None)?,
 			"translations.rs",
 		)?,
-	)
-	.map_err(|error| error.to_string())?;
+	)?;
 
 	if let Some(extension) = extension {
-		fs::write(
+		build_io::write(
 			output.join(extension.filename()),
 			source::format(
 				render::render(&tree, &sources, &message_types, Some(extension))?,
 				extension.filename(),
 			)?,
-		)
-		.map_err(|error| error.to_string())?;
+		)?;
 	}
 
 	Ok(())

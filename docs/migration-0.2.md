@@ -1,6 +1,6 @@
-# Migrate from fluent_typed_codegen 0.1.4 to 0.2.1
+# Migrate from fluent_typed_codegen 0.1.4 to 0.2.2
 
-This guide upgrades an application using the 0.1.4 API to 0.2.1.
+This guide upgrades an application using the 0.1.4 API to 0.2.2.
 
 The smallest migration keeps your full translation tree and typed message calls.
 Only initialization, error handling and code that reads embedded metadata change.
@@ -9,16 +9,17 @@ Module-by-module loading is optional.
 ## 1. Update both dependency sections
 
 Replace the generator entries in your application's Cargo.toml. Keep your
-localization metadata, FTL layout and the two Fluent runtime dependencies:
+FTL layout and the two Fluent runtime dependencies. Update metadata as shown
+in [Catalog-only build configuration](#catalog-only-build-configuration):
 
 ```toml
 [dependencies]
-fluent_typed_codegen = { version = "0.2.1", default-features = false }
+fluent_typed_codegen = { version = "0.2.2", default-features = false }
 fluent-typed = { version = "0.9.0", default-features = false, features = ["langneg"] }
 fluent-syntax = "0.12"
 
 [build-dependencies]
-fluent_typed_codegen = { version = "0.2.1", default-features = false, features = ["build"] }
+fluent_typed_codegen = { version = "0.2.2", default-features = false, features = ["build"] }
 ```
 
 Remove development Git/path overrides for this package when switching to the
@@ -66,19 +67,8 @@ selected language. Generation alone embeds no FTL. Static embedded bytes remain
 in the executable for its lifetime, even when parsed catalogs are dropped.
 There is no compressor/decompressor callback.
 
-For a smaller embedded source, select a generated Rust type:
-
-```rust
-let manifest = texts::embed_manifest!(module = texts::presentation::Hud);
-let hud = texts::presentation::Hud::from_manifest(texts::Locale::En, &manifest)?;
-```
-
-A leaf includes its file across known languages; a group such as
-`texts::Presentation` includes its descendant leaves. Use a generated path or a
-`use` alias. Strings, arbitrary `type` aliases and generic parameters are not
-selectors.
-A HUD-only manifest cannot construct a root that also requires other modules.
-Unselected FTL stays out of debug builds too, without relying on optimization.
+The no-argument macro selects the complete tree. For named constants, follow the
+[selective embedding recipe](loading.md#embed-one-module).
 
 ## 3. Keep your storage or choose files
 
@@ -118,7 +108,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 Run from the application's directory. `from_file` reads the TOML contract;
 `from_manifest` reads and parses the requested FTL. Installed applications supply
-their installed manifest path. Build-time `asset-root` is not a runtime root.
+their installed manifest path. The build-time `catalog` path does not select a runtime root.
 Encrypted, compressed or network data stays application-owned: supply readable
 bytes to `Hud::new(locale, &bytes)` or decoded text pairs to `from_modules`.
 
@@ -130,7 +120,7 @@ validation-only use and loading every known language.
 
 ## 4. Update metadata and custom integrations
 
-| 0.1.4 usage | 0.2.1 replacement |
+| 0.1.4 usage | 0.2.2 replacement |
 | --- | --- |
 | `MODULES: &[(&str, &str, &str)]` | `MODULES: &[(&str, &str)]`: locale and logical path only |
 | Read FTL from the third tuple field | Obtain readable data from your storage or an explicit manifest |
@@ -165,3 +155,23 @@ same. Applications still own fallback and caching; this upgrade does not provide
 automatic eviction or eliminate upstream input copying/reparsing.
 
 [All changes](../CHANGELOG.md) · [Loading recipes](loading.md) · [Setup](../README.md#setup)
+
+## Catalog-only build configuration
+
+Merge the previous `asset-root` and
+`catalog` values into one path relative to the package's `Cargo.toml`:
+
+```toml
+[package.metadata.localization]
+catalog = "assets/localizations/localization.toml"
+```
+
+Remove `asset-root`; unknown fields are ignored and no longer affect path
+resolution. Recognized fields are still validated. In explicit generator
+settings, keep only `Settings { catalog: ... }`. Generated `CATALOG_PATH` replaces
+`CATALOG_ASSET_PATH`, and `ASSET_ROOT` is removed. The catalog path may contain
+`..` to share source translations across packages. Runtime logical module paths
+and `translations-directory` still cannot escape their declared scope.
+
+Use generator and runtime 0.2.2 together. See the
+[0.2.1 to 0.2.2 migration](migration-0.2.2.md) for the complete metadata and embedding changes.

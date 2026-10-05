@@ -28,8 +28,7 @@ exclude = ["data/**"]
 [build-dependencies]
 fluent_typed_codegen = {{ path = {generator:?} }}
 [package.metadata.localization]
-asset-root = "data"
-catalog = "strings/localization.toml"
+catalog = "data/strings/localization.toml"
 "#
 		),
 	);

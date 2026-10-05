@@ -6,7 +6,7 @@ use std::{fs, path::PathBuf, process::Command};
 #[test]
 fn schema_only_compiles_without_ftl_and_checked_loading_enforces_upstream_contracts() {
 	let fixture = Fixture::new();
-	let settings = fixture.catalogs();
+	fixture.catalogs();
 	let output = fixture.0.join("generated");
 	let contract = "language-name = EMBED_PAYLOAD_SENTINEL_482917\n# $enabled (Bool) - State.\nflag = { $enabled ->\n    [true] Enabled\n   *[false] Disabled\n}\n# $icon (Element) - Slot.\nprompt = Press { $icon } now\n";
 	let mut originals = Vec::new();
@@ -23,7 +23,12 @@ fn schema_only_compiles_without_ftl_and_checked_loading_enforces_upstream_contra
 		}
 	}
 
-	generate(&fixture.0, &output, &settings).unwrap();
+	let consumer = fixture.0.join("consumer");
+	fs::create_dir(&consumer).unwrap();
+	let settings = crate::Settings {
+		catalog: PathBuf::from("../data/strings/localization.toml"),
+	};
+	generate(&consumer, &output, &settings).unwrap();
 	let upstream = fs::read_to_string(output.join("modules/ui/options/translations.rs")).unwrap();
 	assert!(!upstream.contains("EMBED_PAYLOAD_SENTINEL_482917"));
 	assert!(!upstream.contains("LANG_DATA"));
@@ -73,7 +78,10 @@ pub mod texts {{
 		}
 	}
 
-	fixture.write("src/lib.rs", &format!("{source}\npub fn selected() -> l10n::LocalizationManifest {{ texts::embed_manifest!(module = texts::ui::Options) }}\n"));
+	fixture.write(
+		"src/lib.rs",
+		&format!("{source}\ntexts::embed_manifest! {{ pub const SELECTED = ui::Options; }}\n"),
+	);
 	cargo(&fixture, &["check", "--locked", "--offline", "--quiet"]);
 
 	for (path, bytes) in originals {

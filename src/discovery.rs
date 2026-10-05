@@ -1,11 +1,8 @@
 //! Deterministic discovery and complete per-module contract checks.
-use super::{diagnostics, references, settings::Settings};
-use crate::{CatalogConfig, schema};
+use super::{references, settings::Settings};
+use crate::{BuildError, CatalogConfig, IoOperation, ModuleMismatch, build_io, schema};
 use fluent_typed::prelude::LanguageIdentifier;
-use std::{
-	fs,
-	path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
 pub(super) struct SourceModule {
 	pub language: String,
@@ -24,40 +21,39 @@ pub(super) struct CatalogSources {
 /// Discover locale directories and FTL files, rejecting symlinks within the
 /// language tree and validating per-language parity.
 /// Upstream argument-type validation runs later during generation.
-pub(super) fn discover(package: &Path, settings: &Settings) -> Result<CatalogSources, String> {
+pub(super) fn discover(package: &Path, settings: &Settings) -> Result<CatalogSources, BuildError> {
 	settings.validate()?;
 	let config_path = settings.catalog_path(package);
-	let configuration = CatalogConfig::parse(&read(&config_path)?)
-		.map_err(|error| format!("{}: {error}", config_path.display()))?;
+	let configuration =
+		CatalogConfig::parse(&read(&config_path)?).map_err(|source| BuildError::Config {
+			path: Some(config_path.clone()),
+			source,
+		})?;
 	let mut root = config_path
 		.parent()
-		.ok_or("catalog must have a parent directory")?
+		.expect("package-joined catalog has a parent")
 		.to_owned();
 
 	for component in configuration.languages_directory.components() {
 		root.push(component);
-		let metadata =
-			fs::symlink_metadata(&root).map_err(|error| format!("{}: {error}", root.display()))?;
+		let metadata = build_io::symlink_metadata(&root)?;
 
 		if metadata.file_type().is_symlink() {
-			return Err(format!(
-				"symbolic links inside catalogs are unsupported: {}",
-				root.display()
-			));
+			return Err(BuildError::Symlink { path: root.clone() });
 		}
 	}
 
 	let mut languages = Vec::new();
 
-	for entry in fs::read_dir(&root).map_err(|error| format!("{}: {error}", root.display()))? {
-		let entry = entry.map_err(|error| error.to_string())?;
-		let kind = entry.file_type().map_err(|error| error.to_string())?;
+	for entry in build_io::read_dir(&root)? {
+		let entry =
+			entry.map_err(|source| BuildError::io(IoOperation::ReadDirectory, &root, source))?;
+		let kind = entry
+			.file_type()
+			.map_err(|source| BuildError::io(IoOperation::Metadata, &entry.path(), source))?;
 
 		if kind.is_symlink() {
-			return Err(format!(
-				"symbolic links inside catalogs are unsupported: {}",
-				entry.path().display()
-			));
+			return Err(BuildError::Symlink { path: entry.path() });
 		}
 
 		if !kind.is_dir() {
@@ -67,15 +63,21 @@ pub(super) fn discover(package: &Path, settings: &Settings) -> Result<CatalogSou
 		let name = entry
 			.file_name()
 			.into_string()
-			.map_err(|_| "locale directory must be UTF-8")?;
-		let id = name
-			.parse::<LanguageIdentifier>()
-			.map_err(|error| format!("invalid language directory {name:?}: {error}"))?;
+			.map_err(|_| BuildError::NonUtf8Path { path: entry.path() })?;
+		let id =
+			name.parse::<LanguageIdentifier>()
+				.map_err(|source| BuildError::InvalidLocale {
+					path: entry.path(),
+					locale: name.clone(),
+					source,
+				})?;
 
 		if id.to_string() != name {
-			return Err(format!(
-				"language directory {name:?} must use canonical spelling {id:?}"
-			));
+			return Err(BuildError::NonCanonicalLocale {
+				path: entry.path(),
+				locale: name,
+				canonical: id.to_string(),
+			});
 		}
 
 		languages.push(name);
@@ -88,10 +90,10 @@ pub(super) fn discover(package: &Path, settings: &Settings) -> Result<CatalogSou
 		&configuration.default_language,
 	] {
 		if !languages.contains(configured) {
-			return Err(format!(
-				"configured language {configured:?} has no directory in {}",
-				root.display()
-			));
+			return Err(BuildError::MissingLocale {
+				locale: configured.clone(),
+				root: root.clone(),
+			});
 		}
 	}
 
@@ -99,10 +101,10 @@ pub(super) fn discover(package: &Path, settings: &Settings) -> Result<CatalogSou
 	let paths = discover_modules(&reference_root, &reference_root)?;
 
 	if paths.is_empty() {
-		return Err(format!(
-			"no .ftl modules in source language {}",
-			configuration.source_language
-		));
+		return Err(BuildError::EmptyCatalog {
+			root: reference_root.clone(),
+			locale: configuration.source_language.clone(),
+		});
 	}
 
 	let mut reference = Vec::new();
@@ -111,10 +113,12 @@ pub(super) fn discover(package: &Path, settings: &Settings) -> Result<CatalogSou
 		let absolute = reference_root.join(path);
 		let source = read(&absolute)?;
 
-		let contract =
-			schema::schema(&source).map_err(|error| format!("{}: {error}", absolute.display()))?;
-		references::validate(&contract)
-			.map_err(|error| format!("{}: {error}", absolute.display()))?;
+		let contract = schema::schema(&source).map_err(|source| BuildError::Schema {
+			path: absolute.clone(),
+			locale: configuration.source_language.clone(),
+			source,
+		})?;
+		references::validate(&contract, &absolute)?;
 
 		reference.push(source);
 	}
@@ -126,21 +130,33 @@ pub(super) fn discover(package: &Path, settings: &Settings) -> Result<CatalogSou
 		let locale_paths = discover_modules(&locale_root, &locale_root)?;
 
 		if locale_paths != paths {
-			return Err(diagnostics::module_mismatch(
-				language,
-				&configuration.source_language,
-				&locale_root,
-				&reference_root,
-				&locale_paths,
-				&paths,
-			));
+			return Err(BuildError::ModuleMismatch(Box::new(ModuleMismatch {
+				locale: language.clone(),
+				source_language: configuration.source_language.clone(),
+				locale_root,
+				reference_root: reference_root.clone(),
+				missing: paths
+					.iter()
+					.filter(|p| locale_paths.binary_search(p).is_err())
+					.cloned()
+					.collect(),
+				extra: locale_paths
+					.iter()
+					.filter(|p| paths.binary_search(p).is_err())
+					.cloned()
+					.collect(),
+			})));
 		}
 
 		for (path, expected) in paths.iter().zip(&reference) {
 			let absolute = locale_root.join(path);
 			let source = read(&absolute)?;
-			schema::validate(&source, expected)
-				.map_err(|error| format!("{}: {error}", absolute.display()))?;
+			schema::validate(&source, expected).map_err(|source| BuildError::Schema {
+				path: absolute.clone(),
+				locale: language.clone(),
+				source,
+			})?;
+
 			modules.push(SourceModule {
 				language: language.clone(),
 				path: path.clone(),
@@ -156,36 +172,33 @@ pub(super) fn discover(package: &Path, settings: &Settings) -> Result<CatalogSou
 	})
 }
 
-fn discover_modules(root: &Path, directory: &Path) -> Result<Vec<String>, String> {
+fn discover_modules(root: &Path, directory: &Path) -> Result<Vec<String>, BuildError> {
 	let mut files = Vec::new();
 
-	for entry in
-		fs::read_dir(directory).map_err(|error| format!("{}: {error}", directory.display()))?
-	{
-		let entry = entry.map_err(|error| error.to_string())?;
+	for entry in build_io::read_dir(directory)? {
+		let entry = entry
+			.map_err(|source| BuildError::io(IoOperation::ReadDirectory, directory, source))?;
 		let path = entry.path();
 
 		if entry
 			.file_type()
-			.map_err(|error| error.to_string())?
+			.map_err(|source| BuildError::io(IoOperation::Metadata, &path, source))?
 			.is_symlink()
 		{
-			return Err(format!(
-				"symbolic links inside catalogs are unsupported: {}",
-				path.display()
-			));
+			return Err(BuildError::Symlink { path });
 		}
 
 		if path.is_dir() {
 			files.extend(discover_modules(root, &path)?);
 		} else if path.extension().is_some_and(|extension| extension == "ftl") {
-			files.push(
+			let relative =
 				path.strip_prefix(root)
-					.map_err(|error| error.to_string())?
-					.to_str()
-					.ok_or("module path must be UTF-8")?
-					.replace('\\', "/"),
-			);
+					.map_err(|source| BuildError::PathOutsideRoot {
+						path: path.clone(),
+						root: root.into(),
+						source,
+					})?;
+			files.push(BuildError::utf8(relative)?.replace('\\', "/"));
 		}
 	}
 
@@ -193,6 +206,6 @@ fn discover_modules(root: &Path, directory: &Path) -> Result<Vec<String>, String
 	Ok(files)
 }
 
-fn read(path: &Path) -> Result<String, String> {
-	fs::read_to_string(path).map_err(|error| format!("{}: {error}", path.display()))
+fn read(path: &Path) -> Result<String, BuildError> {
+	build_io::read_to_string(path)
 }

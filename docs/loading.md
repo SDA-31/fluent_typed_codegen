@@ -1,8 +1,7 @@
 # Loading translations in a Rust application
 
-These recipes use the 0.2.1 API from the [README setup](../README.md#setup).
-Complete that setup first. Each recipe includes a complete replacement for
-its `src/main.rs`; keep the same `build.rs`, manifest and English/Spanish FTL files.
+Start with the [README setup](../README.md#setup). Each recipe includes a complete
+replacement for its `src/main.rs`; keep the same `build.rs`, manifest and English/Spanish FTL files.
 Run `cargo run` from the application directory after choosing a recipe.
 
 The build script generates types and checks the source files. Runtime code then
@@ -25,7 +24,7 @@ accessor never opens a file or loads another module.
 First replace only the `fluent_typed_codegen` entry under `[dependencies]` with:
 
 ```toml
-fluent_typed_codegen = { version = "0.2.1", default-features = false, features = ["manifest"] }
+fluent_typed_codegen = { version = "0.2.2", default-features = false, features = ["manifest"] }
 ```
 
 Keep the `[build-dependencies]` entry unchanged. The `manifest` feature enables
@@ -40,7 +39,7 @@ use fluent_typed_codegen::LocalizationManifest;
 fluent_typed_codegen::translations!(pub mod texts);
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let manifest = LocalizationManifest::from_file("assets/localizations/localization.toml")?;
+    let manifest = LocalizationManifest::from_file(texts::CATALOG_PATH)?;
     let hud = texts::presentation::Hud::from_manifest(texts::Locale::En, &manifest)?;
     println!("{}", hud.msg_greeting("Ada"));
     Ok(())
@@ -58,10 +57,12 @@ let translations = texts::Translations::from_manifest(texts::Locale::En, &manife
 println!("{}", translations.presentation().hud().msg_greeting("Ada"));
 ```
 
-Paths passed to `from_file` are relative to the process's current directory,
+`CATALOG_PATH` retains the package-relative build setting. This recipe runs from
+the consuming package directory. Paths passed to `from_file` are relative to the
+process's current directory,
 not the executable. Ship the TOML and translation tree together and pass their
 installed location in a packaged application. The runtime directory may differ
-from Cargo's build-time `asset-root`; module paths and compiled contracts must
+from the build-time `catalog` location; module paths and compiled contracts must
 still match. File reads here are synchronous. Your application owns any async I/O.
 
 If you already have the TOML text, `LocalizationManifest::parse(text, origin)`
@@ -149,15 +150,17 @@ Embedding needs no `manifest` feature and performs no runtime filesystem reads.
 The macro uses the manifest already processed by `build.rs`; it takes no runtime
 path or `LocalizationManifest` value.
 
-Keep the 0.2.1 dependencies from [Setup](../README.md#setup); this version
-supports typed embedded selection. Replace `src/main.rs` with:
+Use generator 0.2.2 in both normal and build dependencies for this recipe.
 
 ```rust
 fluent_typed_codegen::translations!(pub mod texts);
 
+texts::embed_manifest! {
+    const HUD = presentation::Hud;
+}
+
 fn main() -> Result<(), texts::LoadError> {
-    let manifest = texts::embed_manifest!(module = texts::presentation::Hud);
-    let hud = texts::presentation::Hud::from_manifest(texts::Locale::Es, &manifest)?;
+    let hud = texts::presentation::Hud::from_manifest(texts::Locale::Es, &HUD)?;
     println!("{}", hud.msg_greeting("Ada"));
     Ok(())
 }
@@ -165,13 +168,14 @@ fn main() -> Result<(), texts::LoadError> {
 
 The selector includes that leaf's raw bytes in **all compiled languages**. Only
 Spanish is parsed here. Use `texts::embed_manifest!()` to include every leaf and
-language. A group such as `module = texts::Presentation` includes its descendant
-leaves; `module = texts::Translations` is the explicit whole-tree form.
+language. Inside the declaration block, `Presentation` selects its descendant
+leaves and `Translations` selects the whole tree. Each constant has type
+`LocalizationManifest` and can be exported from a private localization module.
 
-Imports work too: after `use texts::presentation::Hud as HudTexts`, select
-`module = HudTexts`. Pass a generated type path or a `use` alias, not an arbitrary
-`type` alias or generic parameter: selection needs the associated generated macro
-as well as the type.
+The macro accepts only an empty invocation or a block of constant declarations.
+Selectors are original schema paths relative to the generated tree, not imported
+aliases. `use texts::presentation::Hud as HudTexts` still works for constructing
+the catalog: `HudTexts::from_manifest(locale, &HUD)`.
 
 Without a macro invocation, the generated schema embeds no FTL payload, even in
 debug builds without optimization, LTO or linker dead-code removal. Selecting a

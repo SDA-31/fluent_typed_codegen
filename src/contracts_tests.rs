@@ -56,7 +56,8 @@ fn catalog_directory_defaults_to_siblings_and_accepts_a_legacy_alias() {
 		let error = CatalogConfig::parse(&format!(
 			"{source}translations-directory = '.'\nlanguages-directory = '{alias_value}'\n"
 		))
-		.unwrap_err();
+		.unwrap_err()
+		.to_string();
 		assert!(error.contains("use only translations-directory"), "{error}");
 	}
 }

@@ -1,11 +1,11 @@
 //! Emit independent catalog/group wrappers around upstream typed message APIs.
 use crate::{
-	Extension, Scope, discovery::CatalogSources, locale, message_types::MessageTypes, schema,
-	tree::Node,
+	BuildError, Extension, Scope, build_io, discovery::CatalogSources, locale,
+	message_types::MessageTypes, schema, tree::Node,
 };
 use proc_macro2::TokenStream;
 use quote::quote;
-use std::{collections::BTreeMap, fs};
+use std::collections::BTreeMap;
 use syn::{Ident, Path, parse_quote};
 
 pub(super) fn render(
@@ -13,12 +13,12 @@ pub(super) fn render(
 	sources: &CatalogSources,
 	message_types: &MessageTypes,
 	extension: Option<&dyn Extension>,
-) -> Result<TokenStream, String> {
+) -> Result<TokenStream, BuildError> {
 	let imports = extension
 		.map(|extension| extension.root_imports())
 		.unwrap_or_default();
 	let locale = locale::render(sources)?;
-	let embedded = crate::embedding::Recipes::new(sources)?;
+	let embedding = crate::embedding::Recipes::new(sources)?.manifest(root);
 	let mut schemas = BTreeMap::new();
 
 	for module in sources
@@ -26,18 +26,30 @@ pub(super) fn render(
 		.iter()
 		.filter(|module| module.language == sources.configuration.source_language)
 	{
-		let source = fs::read_to_string(&module.absolute).map_err(|error| error.to_string())?;
+		let source = build_io::read_to_string(&module.absolute)?;
 		schemas.insert(
 			module.path.trim_end_matches(".ftl").to_owned(),
-			schema::schema(&source)?,
+			schema::schema(&source).map_err(|source| BuildError::Schema {
+				path: module.absolute.clone(),
+				locale: module.language.clone(),
+				source,
+			})?,
 		);
 	}
 
-	let tree = render_node(root, true, message_types, &schemas, &embedded, extension);
-	let errors = syn::parse_file(include_str!("../templates/error.rs"))
-		.map_err(|error| format!("error template: {error}"))?;
-	let catalog = syn::parse_file(include_str!("../templates/catalog.rs"))
-		.map_err(|error| format!("catalog template: {error}"))?;
+	let tree = render_node(root, true, message_types, &schemas, extension);
+	let errors = syn::parse_file(include_str!("../templates/error.rs")).map_err(|source| {
+		BuildError::Syntax {
+			file: "templates/error.rs".into(),
+			source,
+		}
+	})?;
+	let catalog = syn::parse_file(include_str!("../templates/catalog.rs")).map_err(|source| {
+		BuildError::Syntax {
+			file: "templates/catalog.rs".into(),
+			source,
+		}
+	})?;
 	let mut scopes = Vec::new();
 	collect_scopes(root, &[], &[], &mut scopes);
 	let items = extension
@@ -53,7 +65,7 @@ pub(super) fn render(
 
 		#[allow(unused_imports)]
 		pub use __catalog_metadata::{
-			ASSET_ROOT, CATALOG_ASSET_PATH, DEFAULT_LANGUAGE, SOURCE_LANGUAGE,
+			CATALOG_PATH, DEFAULT_LANGUAGE, SOURCE_LANGUAGE,
 			LANGUAGES_DIRECTORY, CATALOG_CONFIG, MODULES,
 		};
 
@@ -68,6 +80,7 @@ pub(super) fn render(
 
 		#locale
 		#errors
+		#embedding
 		#tree
 		#catalog
 		#(#items)*
@@ -79,7 +92,6 @@ fn render_node(
 	root: bool,
 	message_types: &MessageTypes,
 	schemas: &BTreeMap<String, schema::Schema>,
-	embedded: &crate::embedding::Recipes<'_>,
 	extension: Option<&dyn Extension>,
 ) -> TokenStream {
 	let ty = identifier(&node.ty);
@@ -178,7 +190,7 @@ fn render_node(
 				pub fn validate(bytes: &[u8]) -> ::std::result::Result<(), LoadError> {
 					let check = || -> ::std::result::Result<(), ::std::string::String> {
 						let source = ::std::str::from_utf8(bytes).map_err(|error| error.to_string())?;
-						__validation::validate_schema(source, &[#(#entries,)*])?;
+						__validation::validate_schema(source, &[#(#entries,)*]).map_err(|error| error.to_string())?;
 						#implementation::__validate(bytes).map_err(|error| error.to_string())
 					};
 					check().map_err(|message| LoadError::Module {
@@ -282,10 +294,8 @@ fn render_node(
 		None => syn::Item::Struct(declaration),
 	};
 
-	let embedding = embedded.scope(node);
 	let declarations = quote! {
 		#declaration
-		#embedding
 
 		impl #ty {
 			#(#accessors)*
@@ -347,7 +357,7 @@ fn render_node(
 	let children = node
 		.children
 		.values()
-		.map(|child| render_node(child, false, message_types, schemas, embedded, extension));
+		.map(|child| render_node(child, false, message_types, schemas, extension));
 
 	if root {
 		return quote! {
@@ -366,7 +376,7 @@ fn render_node(
 
 		#[doc = #description]
 		pub mod #name {
-			use super::{fluent_typed, Locale, LoadError, LocalizationManifest, __validation, __fluent_codegen};
+			use super::{fluent_typed, Locale, LoadError, LocalizationManifest, __validation};
 			#(#imports)*
 			#(#children)*
 		}
@@ -376,7 +386,7 @@ fn render_node(
 pub(super) fn validate_extension(
 	node: &Node,
 	extension: Option<&dyn Extension>,
-) -> Result<(), String> {
+) -> Result<(), BuildError> {
 	let Some(extension) = extension else {
 		return Ok(());
 	};
@@ -384,10 +394,12 @@ pub(super) fn validate_extension(
 	let name = node.name.strip_prefix("r#").unwrap_or(&node.name);
 
 	if extension.reserved_names().contains(&name) {
-		return Err(format!(
-			"{}: name `{}` is reserved by the extension",
-			node.path, node.name
-		));
+		return Err(BuildError::ReservedName {
+			path: node.path.clone(),
+			name: node.name.clone(),
+			ty: node.ty.clone(),
+			extension: true,
+		});
 	}
 
 	for child in node.children.values() {

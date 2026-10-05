@@ -72,16 +72,15 @@ edition = "2024"
 rust-version = "1.95"
 
 [build-dependencies]
-fluent_typed_codegen = { version = "0.2.1", default-features = false, features = ["build"] }
+fluent_typed_codegen = { version = "0.2.2", default-features = false, features = ["build"] }
 
 [dependencies]
-fluent_typed_codegen = { version = "0.2.1", default-features = false }
+fluent_typed_codegen = { version = "0.2.2", default-features = false }
 fluent-typed = { version = "0.9.0", default-features = false, features = ["langneg"] }
 fluent-syntax = "0.12"
 
 [package.metadata.localization]
-asset-root = "assets"
-catalog = "localizations/localization.toml"
+catalog = "assets/localizations/localization.toml"
 ```
 
 ### 2. Run generation from build.rs
@@ -175,8 +174,7 @@ Paths and language policy live in two small TOML sections:
 
 | Setting | Location | Meaning |
 | --- | --- | --- |
-| `asset-root` | Cargo package metadata | Directory relative to the consuming package. |
-| `catalog` | Cargo package metadata | Configuration file relative to `asset-root`. |
+| `catalog` | Cargo package metadata | TOML file relative to the consuming package's `Cargo.toml`; `..` may locate shared sources. |
 | `translations-directory` | Catalog TOML | Locale folders relative to this TOML; defaults to `"."`. |
 | `source-language` | Catalog TOML | Language defining message keys, references and argument annotations. |
 | `default-language` | Catalog TOML | Startup metadata emitted as `DEFAULT_LANGUAGE`. |
@@ -188,10 +186,13 @@ specifying both names is an error. The generator does not guess directory names.
 The application selects its initial locale. `default-language` records that policy;
 `Locale::default()` identifies the **source** language.
 
-Unknown fields, unsafe paths, symlinked source trees, missing languages/modules,
+Unknown fields are ignored in Cargo localization metadata and the TOML manifest.
+Invalid recognized fields, unsafe paths, symlinked source trees, missing languages/modules,
 duplicate keys and incompatible contracts fail generation. Module diagnostics
 list missing and extra paths; translator files are never repaired automatically.
 Use `fluent_typed_codegen::from_cargo()` for custom `Result`-based build-error handling.
+It returns `BuildError`; configuration parsers return `ConfigError`. See
+[typed errors](docs/errors.md) for matching variants and preserving error causes.
 
 ## Typed translation scopes
 
@@ -280,24 +281,29 @@ in `build.rs`. See the
 
 ```rust
 let complete = texts::embed_manifest!();
-let hud_only = texts::embed_manifest!(module = texts::presentation::Hud);
-let presentation = texts::embed_manifest!(module = texts::Presentation);
-let hud = texts::presentation::Hud::from_manifest(locale, &hud_only)?;
+texts::embed_manifest! {
+    pub const HUD = presentation::Hud;
+    const PRESENTATION = Presentation;
+}
+let hud = texts::presentation::Hud::from_manifest(locale, &HUD)?;
 ```
 
-Use the generated type's path, or a `use` import, including `use ... as ...`.
-The selector resolves both that type and its generated embedding macro; an
-arbitrary `type` alias or generic type parameter cannot select an embedding recipe.
+`embed_manifest!` accepts only an empty invocation or a block declaring constants
+of type `LocalizationManifest`. Selectors inside the block are paths relative to
+this generated tree, without `texts::`. Ordinary `use` imports and aliases remain
+available for catalog construction and resources; they do not change selectors.
 
 No expanded call means no FTL payload is included by this path, including in
 unoptimized debug builds; this does not depend on LTO or linker stripping. A macro in
 `if false` still expands. The no-argument form includes **all raw modules and all
 languages**; a leaf selector includes that leaf in every language, and a group
-includes its descendant leaves. `module = texts::Translations` selects the whole
-tree. Runtime construction decides what gets parsed, not what enters the
-binary. Static embedded bytes outlive dropped parsed catalogs. The generated
+includes its descendant leaves. `const ALL = Translations;` inside the block
+selects the whole tree. Runtime construction decides what gets parsed, not what
+enters the binary. Static embedded bytes outlive dropped parsed catalogs. The generated
 macro is crate-local, including inside a `pub mod texts`; a library can expose
-its own function that explicitly invokes it.
+its own manifest constant alongside catalog aliases.
+
+Upgrading from 0.2.1? Follow the [0.2.2 migration](docs/migration-0.2.2.md).
 
 Upgrading from 0.1.4? Follow the [migration guide](docs/migration-0.2.md)
 for before/after constructors, error handling, metadata and manual includes.
@@ -335,8 +341,9 @@ Build-time discovery still reads the source tree through an explicit `build.rs`.
 There is no archive option in the generator. For runtime distribution, package
 the original per-language FTL files, not generated Rust or intermediate bundles
 under `OUT_DIR`. `MODULES` records `(locale, relative module path)` without translation data;
-`CATALOG_ASSET_PATH` and `LANGUAGES_DIRECTORY` describe the definition and layout.
-`ASSET_ROOT` is a build-time location, not a runtime storage requirement.
+`CATALOG_PATH` and `LANGUAGES_DIRECTORY` describe the definition and layout.
+`CATALOG_PATH` is a build-time filesystem location. Runtime storage addresses
+and loader roots belong to the application.
 
 Bevy consumers additionally package the original definition TOML and preserve
 its relative directory layout. The
@@ -442,12 +449,12 @@ implement a rendering engine.
 
 | Symptom | What to check |
 | --- | --- |
-| `Hud::new`, `from_manifest` or `embed_manifest!` is missing | Use version 0.2.1 from [Setup](#setup) in **both** Cargo sections. Published 0.1.4 uses the previous API. |
-| `embed_manifest!(module = texts::presentation::Hud)` is rejected | Use version 0.2.1 from [Setup](#setup) in both dependency sections. Pass a generated path or `use` alias, not a string or `type` alias. |
+| `Hud::new`, `from_manifest` or `embed_manifest!` is missing | Use version 0.2.2 from [Setup](#setup) in **both** Cargo sections. Published 0.1.4 uses the previous API. |
+| `embed_manifest!` rejects a constant declaration | Use 0.2.2 in both normal and build dependencies. Selectors are relative schema paths, not application aliases. |
 | `translations!` cannot find `OUT_DIR` or `translations.rs` | Add the [build.rs](#2-run-generation-from-buildrs) beside the application's Cargo.toml and enable `build` on its build dependency. Resolve any earlier generation error first. |
 | `LocalizationManifest::from_file` or `parse` is missing | Enable `manifest` on the **normal** dependency, as in the [file recipe](docs/loading.md#read-files-through-a-manifest). A build dependency's features do not enable runtime APIs. |
 | Generated code cannot resolve `fluent_typed` or `fluent_syntax` | Keep `fluent-typed` and `fluent-syntax` under those canonical dependency names in the application's `[dependencies]`. |
-| Runtime file loading reports a missing file | Run the recipe from the application directory. In a packaged application, pass the installed TOML path; retain its relative translation layout. Cargo's `asset-root` does not set the runtime working directory. |
+| Runtime file loading reports a missing file | Run the recipe from the application directory. In a packaged application, pass the installed TOML path; retain its relative translation layout. The build-time `catalog` setting does not set the runtime working directory. |
 | Loading reports missing, duplicate or unexpected modules | Pass each logical path once, without a locale prefix. `from_modules` needs a complete language; use `Hud::new` for just one leaf. |
 | `load_all` reports missing languages | Supply every compiled locale. To keep only one language, use `from_modules` or `from_manifest`. |
 | `Locale::default()` does not match `default-language` | `Locale::default()` is the source language. Choose the startup locale explicitly; `DEFAULT_LANGUAGE` is emitted metadata. |
@@ -571,6 +578,22 @@ after the first dependency resolution. The local lockfile and target directory
 are ignored; a consuming workspace owns its own lockfile.
 The [bundled example](examples/minimal/README.md) uses repository-local paths for
 development; external applications use the registry dependencies in Setup.
+
+### Work on local checkouts
+
+To try source-checkout recipes in your own application, keep the dependency
+features from Setup and add this override to your application's Cargo.toml:
+
+```toml
+[patch.crates-io]
+fluent_typed_codegen = { path = "/absolute/path/to/fluent_typed_codegen" }
+```
+
+Use the checkout containing the API you are testing. The patch applies to both
+normal and build dependencies, so generated code and runtime macros stay aligned.
+In a Cargo workspace, put it in the workspace root. The bundled example already
+uses matching path dependencies and needs no patch. Released consumers need
+only the registry dependency declarations from Setup.
 
 ## Continuous integration
 

@@ -28,6 +28,7 @@ fn typed_embedding_keeps_unselected_payloads_out_of_unoptimized_binaries() {
 	let output = fixture.0.join("generated");
 	generate(&fixture.0, &output, &settings).unwrap();
 	let generated = output.join("translations.rs");
+
 	let generator = env!("CARGO_MANIFEST_DIR").replace('\\', "/");
 	fixture.write(
 		"Cargo.toml",
@@ -59,6 +60,7 @@ mod texts {{
     include!({generated:?});
 }}
 pub use texts::ui::Options as SettingsTexts;
+pub type Interface = SettingsTexts;
 "#
 	);
 
@@ -67,7 +69,17 @@ pub use texts::ui::Options as SettingsTexts;
 		fs::remove_file(path).unwrap();
 	}
 
-	build_and_inspect(&fixture, &schema, "", &[]);
+	build_and_inspect(
+		&fixture,
+		&schema,
+		r#"
+    texts::embed_manifest! {
+        #[cfg(any())]
+        pub const DISABLED = ui::Options;
+    }
+"#,
+		&[],
+	);
 
 	for (path, module, source) in &originals {
 		if *module == "ui/options.ftl" {
@@ -79,16 +91,88 @@ pub use texts::ui::Options as SettingsTexts;
 		&fixture,
 		&schema,
 		r#"
-    let direct = texts::embed_manifest!(module = texts::ui::Options);
-    let alias = texts::embed_manifest!(module = SettingsTexts,);
-    assert_eq!(direct.embedded_modules(), alias.embedded_modules());
-    assert_eq!(direct.embedded_modules().unwrap().len(), 3);
-    for (locale, path, bytes) in direct.embedded_modules().unwrap() {
+    texts::embed_manifest! {
+        /// Only the options leaf, with visibility controlled by its owner.
+        pub(crate) const OPTIONS = ui::Options;
+        const AGAIN = ui::Options;
+    }
+    let selected: l10n::LocalizationManifest = OPTIONS;
+    assert_eq!(AGAIN.embedded_modules(), selected.embedded_modules());
+    assert_eq!(selected.config().default_language, "pt-BR");
+    let catalog: Interface = SettingsTexts::from_manifest(texts::Locale::De, &selected).unwrap();
+    assert!(catalog.msg_title().contains("FTL_OPTIONS_SENTINEL_813627"));
+    let from_const = Interface::from_manifest(texts::Locale::De, &OPTIONS).unwrap();
+    assert_eq!(from_const.msg_title(), catalog.msg_title());
+    mod consumer {
+        pub fn selected() -> l10n::LocalizationManifest {
+            super::texts::embed_manifest! { const SOURCE = ui::Options; }
+            SOURCE
+        }
+    }
+    assert_eq!(selected.embedded_modules(), consumer::selected().embedded_modules());
+    assert_eq!(selected.embedded_modules().unwrap().len(), 3);
+    for (locale, path, bytes) in selected.embedded_modules().unwrap() {
         assert_eq!(*path, "ui/options.ftl");
         println!("{locale} {path} {}", std::str::from_utf8(bytes).unwrap());
     }
 "#,
 		&["ui/options.ftl"],
+	);
+
+	// The declaration does not depend on the names visible at its call site. Its
+	// owning module can keep the whole generated tree private and export only its API.
+	let encapsulated = format!(
+		r#"#![deny(warnings)]
+mod localization {{
+    #[allow(dead_code, clippy::derivable_impls, clippy::too_many_arguments)]
+    mod texts {{
+        use l10n as __fluent_codegen;
+        use fluent_typed;
+        use fluent_syntax;
+        include!({generated:?});
+    }}
+    pub use texts::ui::Options as Interface;
+    pub use texts::Locale;
+    pub(crate) use texts::embed_manifest as embed;
+    #[allow(dead_code)]
+    mod ui {{ pub struct Options; }}
+    texts::embed_manifest! {{ pub const HUD = ui::Options; }}
+}}
+use localization::{{HUD as SOURCE, Interface, Locale}};
+localization::embed! {{ const REEXPORTED = ui::Options; }}
+"#
+	);
+	build_and_inspect(
+		&fixture,
+		&encapsulated,
+		r#"
+    let source: l10n::LocalizationManifest = SOURCE;
+    assert_eq!(source.embedded_modules(), REEXPORTED.embedded_modules());
+    let catalog = Interface::from_manifest(Locale::De, &source).unwrap();
+    println!("{}", catalog.msg_title());
+"#,
+		&["ui/options.ftl"],
+	);
+
+	for (path, module, source) in &originals {
+		if *module == "ui/main.ftl" {
+			fs::write(path, source).unwrap();
+		}
+	}
+
+	// Both ui and ui_extra declare Main: matching a type name alone is insufficient.
+	build_and_inspect(
+		&fixture,
+		&schema,
+		r#"
+    texts::embed_manifest! { const MAIN = ui::Main; }
+    let manifest = MAIN;
+    for (_, path, bytes) in manifest.embedded_modules().unwrap() {
+        assert_eq!(*path, "ui/main.ftl");
+        println!("{}", std::str::from_utf8(bytes).unwrap());
+    }
+"#,
+		&["ui/main.ftl"],
 	);
 
 	for (path, module, source) in &originals {
@@ -101,9 +185,12 @@ pub use texts::ui::Options as SettingsTexts;
 		&fixture,
 		&schema,
 		r#"
-    use texts::ui::r#type as nested;
-    let group = texts::embed_manifest!(module = crate::texts::Ui);
-    let leaf = texts::embed_manifest!(module = nested::Detail);
+    texts::embed_manifest! {
+        const GROUP = Ui;
+        const NESTED = ui::r#type::Detail;
+    }
+    let group = GROUP;
+    let leaf = NESTED;
     assert_eq!(leaf.embedded_modules().unwrap().len(), 3);
     assert_eq!(group.embedded_modules().unwrap().len(), 9);
     for (locale, path, bytes) in group.embedded_modules().unwrap() {
@@ -122,9 +209,9 @@ pub use texts::ui::Options as SettingsTexts;
 		&fixture,
 		&schema,
 		r#"
-    let explicit = texts::embed_manifest!(module = texts::Translations);
     let complete = texts::embed_manifest!();
-    assert_eq!(explicit.embedded_modules(), complete.embedded_modules());
+    texts::embed_manifest! { const ALL = Translations; }
+    assert_eq!(ALL.embedded_modules(), complete.embedded_modules());
     assert_eq!(complete.embedded_modules().unwrap().len(), 12);
     for (locale, path, bytes) in complete.embedded_modules().unwrap() {
         println!("{locale} {path} {}", std::str::from_utf8(bytes).unwrap());
@@ -138,24 +225,89 @@ pub use texts::ui::Options as SettingsTexts;
 		],
 	);
 
-	for (selector, diagnostic) in [
-		("texts::ui::Missing", "Missing"),
-		("\"ui/options.ftl\"", "no rules expected"),
-	] {
-		fixture.write(
-			"src/main.rs",
-			&format!(
-				"{schema}\nfn main() {{ let _ = texts::embed_manifest!(module = {selector}); }}\n"
-			),
-		);
-		let output = cargo(&fixture, "check");
-		let stderr = String::from_utf8_lossy(&output.stderr);
-		assert!(
-			!output.status.success(),
-			"selector unexpectedly accepted: {selector}"
-		);
-		assert!(stderr.contains(diagnostic), "{stderr}");
+	// Invalid selectors must not expand even one include, independently of diagnostics.
+	for (path, _, _) in &originals {
+		fs::remove_file(path).unwrap();
 	}
+
+	// Removed expression selectors must fail before resolving paths or reading files.
+	for argument in [
+		"module = texts::ui::Options",
+		"module = texts::Ui",
+		"module = texts::Translations",
+		"module =",
+		"texts::ui::Options",
+		"texts::ui::Options,",
+		"::application::texts::ui::Options",
+		"self::texts::ui::Options",
+		"Interface",
+		"\"ui/options.ftl\"",
+		"texts::ui::Options::<()>",
+	] {
+		let expression = format!("texts::embed_manifest!({argument})");
+		assert_rejected(
+			&fixture,
+			&schema,
+			&expression,
+			"use `embed_manifest!()` for the complete tree or",
+		);
+	}
+
+	for (selector, diagnostic) in [
+		("texts::ui::Options", "unknown relative catalog selector"),
+		(
+			"crate::texts::ui::Options",
+			"unknown relative catalog selector",
+		),
+		("SettingsTexts", "unknown relative catalog selector"),
+		("Interface", "unknown relative catalog selector"),
+		("ui::Missing", "unknown relative catalog selector"),
+		("std::string::String", "unknown relative catalog selector"),
+		(
+			"\"ui/options.ftl\"",
+			"expected `pub const NAME = relative::Scope;`",
+		),
+		(
+			"ui::Options::<()>",
+			"expected `pub const NAME = relative::Scope;`",
+		),
+		(
+			"::ui::Options",
+			"expected `pub const NAME = relative::Scope;`",
+		),
+	] {
+		let expression =
+			format!("{{ texts::embed_manifest! {{ pub const SELECTED = {selector}; }} SELECTED }}");
+		assert_rejected(&fixture, &schema, &expression, diagnostic);
+	}
+
+	assert_rejected(
+		&fixture,
+		&schema,
+		"texts::ui::Options!(@manifest)",
+		"could not find `Options` in `ui`",
+	);
+	assert_rejected(
+		&fixture,
+		&schema,
+		"SettingsTexts!(@manifest)",
+		"cannot find macro `SettingsTexts`",
+	);
+}
+
+fn assert_rejected(fixture: &Fixture, schema: &str, expression: &str, diagnostic: &str) {
+	fixture.write(
+		"src/main.rs",
+		&format!("{schema}\nfn main() {{ let _ = {expression}; }}\n"),
+	);
+	let output = cargo(fixture, "check");
+	let stderr = String::from_utf8_lossy(&output.stderr);
+	assert!(
+		!output.status.success(),
+		"unexpectedly accepted: {expression}"
+	);
+	assert!(stderr.contains(diagnostic), "{expression}: {stderr}");
+	assert!(!stderr.contains("couldn't read"), "{expression}: {stderr}");
 }
 
 fn build_and_inspect(fixture: &Fixture, schema: &str, body: &str, selected: &[&str]) {

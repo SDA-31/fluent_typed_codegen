@@ -159,7 +159,9 @@ fn invalid_verbatim_extension_syntax_is_reported_before_writing_its_entrypoint()
 	let fixture = Fixture::new();
 	let settings = fixture.catalogs();
 	let output = fixture.0.join("target/generated");
-	let error = generate_with(&fixture.0, &output, &settings, &InvalidSyntax).unwrap_err();
+	let error = generate_with(&fixture.0, &output, &settings, &InvalidSyntax)
+		.unwrap_err()
+		.to_string();
 
 	assert!(
 		error.contains("generated Rust `invalid_adapter.rs`"),

@@ -1,4 +1,5 @@
 use super::{build_outcome, module_mismatch};
+use crate::BuildError;
 use std::{
 	io,
 	path::{Path, PathBuf},
@@ -78,12 +79,17 @@ fn build_outcome_preserves_readable_lines_and_failure_status_without_panicking()
 	assert_eq!(build_outcome(Ok(()), &mut output), ExitCode::SUCCESS);
 	assert!(output.is_empty());
 	assert_eq!(
-		build_outcome(Err("Missing:\n  - ru/cli.ftl".into()), &mut output),
+		build_outcome(
+			Err(BuildError::Environment {
+				variable: "OUT_DIR"
+			}),
+			&mut output
+		),
 		ExitCode::FAILURE
 	);
 	assert_eq!(
 		String::from_utf8(output).unwrap(),
-		"error: localization generation failed\n\nMissing:\n  - ru/cli.ftl\n"
+		"error: localization generation failed\n\nOUT_DIR is unset\n"
 	);
 }
 
@@ -102,7 +108,12 @@ fn failing_diagnostic_sink_still_returns_failure_without_panicking() {
 	}
 
 	assert_eq!(
-		build_outcome(Err("bad catalogs".into()), &mut Broken),
+		build_outcome(
+			Err(BuildError::Environment {
+				variable: "OUT_DIR"
+			}),
+			&mut Broken
+		),
 		ExitCode::FAILURE
 	);
 }

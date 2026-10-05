@@ -4,7 +4,8 @@
 //! [setup guide](https://github.com/SDA-31/fluent_typed_codegen/tree/main#setup)
 //! for installation, and the
 //! [migration guide](https://github.com/SDA-31/fluent_typed_codegen/blob/main/docs/migration-0.2.md)
-//! when upgrading from 0.1.4.
+//! when upgrading from 0.1.4. For 0.2.1 applications, see the
+//! [0.2.2 migration](https://github.com/SDA-31/fluent_typed_codegen/blob/main/docs/migration-0.2.2.md).
 //!
 //! Language directories are discovered automatically. FTL file paths become
 //! named Rust types, and message parameters become typed accessor arguments.
@@ -31,12 +32,12 @@
 //!
 //! ```toml
 //! [package.metadata.localization]
-//! asset-root = "assets"
-//! catalog = "localizations/localization.toml"
+//! catalog = "assets/localizations/localization.toml"
 //! ```
 //!
-//! The asset root is relative to the Cargo package. The configuration path is
-//! relative to that root. Its filename is configurable; the TOML contains:
+//! `catalog` is a filesystem path relative to the package's Cargo.toml; `..` can
+//! locate shared sources. Its filename is configurable. The generator does not
+//! select an engine asset root. The TOML contains:
 //!
 //! ```toml
 //! translations-directory = "translations"
@@ -104,10 +105,32 @@
 //! [`LocalizationManifest`] contract, while
 //! `texts::embed_manifest!()` explicitly includes a build-prepared raw source set.
 //! Without that macro invocation, generated APIs contain no FTL payload.
-//! The embedded macro is crate-local; `module = texts::ui::Menu` selects one leaf,
-//! and `module = texts::Ui` includes the group's descendants, in every language.
-//! Use a generated type path or a `use` alias, not a `type` alias or generic parameter.
+//! The embedded macro is crate-local. It accepts only an empty invocation for the
+//! complete tree or a block of named manifest constants for selected scopes.
+//! Ordinary catalog imports and aliases remain unrestricted.
 //! Unselected FTL is not included even in unoptimized builds without LTO or stripping.
+//!
+//! Named embedded manifests use selectors relative to this translation tree:
+//!
+//! ```ignore
+//! texts::embed_manifest! {
+//!     pub const MENU = ui::Menu;
+//!     const COMPLETE = Translations;
+//! }
+//!
+//! use texts::ui::Menu as Interface;
+//! let menu: Interface = Interface::from_manifest(texts::Locale::En, &MENU)?;
+//! ```
+//!
+//! These constants have type [`LocalizationManifest`]. They contain source bytes,
+//! not parsed catalogs. A private localization module can export its constants and
+//! catalog aliases without exposing its generated tree. Selectors are generated
+//! schema paths, independent of application imports; strings and type aliases are
+//! rejected as selectors. Attributes such as `#[cfg(...)]` apply to each declaration.
+//! Reading bytes borrows the selected static data; [`LocalizationManifest::config`]
+//! initializes shared metadata on first access. Bind `let manifest = &MENU;` before
+//! retaining a borrow of that metadata. Fluent parsing happens in `from_manifest`.
+//!
 //! See the [complete loading recipes](https://github.com/SDA-31/fluent_typed_codegen/blob/main/docs/loading.md)
 //! for bytes, files, embedding, all languages and explicit module lifetimes.
 //!
@@ -145,6 +168,7 @@
 //! [extension guide](https://github.com/SDA-31/fluent_typed_codegen/tree/main#framework-extensions)
 //! for its syntax hooks and consumer-compilation requirements.
 //! Repository links follow main; this API reference describes the viewed version.
+#![cfg_attr(feature = "build", doc = include_str!("../docs/errors.md"))]
 #![warn(missing_docs)]
 mod macros;
 mod manifest;
@@ -152,9 +176,18 @@ mod manifest;
 #[cfg(test)]
 mod manifest_tests;
 
-pub use manifest::{LocalizationManifest, ManifestError};
+pub use manifest::LocalizationManifest;
 
+#[cfg(feature = "build")]
+mod build_io;
+mod errors;
+#[cfg(feature = "build")]
+pub use errors::{
+	BuildError, IoOperation, ModuleMismatch, NameError, NameOwner, SchemaError, SyntaxNode,
+	UpstreamShapeError,
+};
 mod configuration;
+pub use errors::{ConfigError, ConfigField, FieldError, ManifestError, PathError};
 #[cfg(feature = "build")]
 mod diagnostics;
 #[cfg(feature = "build")]

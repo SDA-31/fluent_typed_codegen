@@ -11,6 +11,7 @@ static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(0);
 mod directories;
 mod documentation;
 mod embedding;
+mod errors;
 mod incremental;
 mod leaf_api;
 mod loading;
@@ -65,8 +66,7 @@ impl Drop for Fixture {
 
 fn settings() -> Settings {
 	Settings {
-		asset_root: "data".into(),
-		catalog: "strings/localization.toml".into(),
+		catalog: "data/strings/localization.toml".into(),
 	}
 }
 
@@ -83,8 +83,7 @@ fn metadata() -> &'static str {
 [package]
 name = "example"
 [package.metadata.localization]
-asset-root = "data"
-catalog = "strings/localization.toml"
+catalog = "data/strings/localization.toml"
 "#
 }
 
@@ -93,19 +92,84 @@ fn metadata_has_one_path_source_and_no_language_allowlist() {
 	assert_eq!(Settings::from_manifest(metadata()).unwrap(), settings());
 
 	for invalid in [
-		metadata().replace("asset-root", "asset-rooot"),
-		metadata().replace("asset-root = \"data\"", ""),
-		metadata().replace("asset-root = \"data\"", "asset-root = 7"),
-		metadata().replace("strings/localization.toml", "../outside.toml"),
-		metadata().replace("strings/localization.toml", "/absolute/localization.toml"),
-		metadata().replace("strings/localization.toml", "strings/interface.ftl"),
+		metadata().replace("catalog", "catlog"),
+		metadata().replace("catalog = \"data/strings/localization.toml\"", ""),
 		metadata().replace(
-			"strings/localization.toml",
-			"strings/localization.toml#label",
+			"catalog = \"data/strings/localization.toml\"",
+			"catalog = 7",
 		),
-		metadata().replace("asset-root = \"data\"", "asset-root = \"../data\""),
+		metadata().replace(
+			"data/strings/localization.toml",
+			"/absolute/localization.toml",
+		),
+		metadata().replace(
+			"data/strings/localization.toml",
+			"data/strings/interface.ftl",
+		),
+		metadata().replace(
+			"data/strings/localization.toml",
+			"strings\\localization.toml",
+		),
 	] {
 		assert!(Settings::from_manifest(&invalid).is_err(), "{invalid}");
+	}
+}
+
+#[test]
+fn metadata_ignores_extra_fields_without_using_them_to_resolve_catalog() {
+	let source = format!(
+		"{}\nasset-root = 42\nextra = {{ enabled = true }}\nlanguages = ['en', 'fr']\n",
+		metadata()
+	);
+	let parsed = Settings::from_manifest(&source).unwrap();
+	assert_eq!(parsed, settings());
+	assert_eq!(
+		parsed.catalog_path(Path::new("consumer")),
+		Path::new("consumer/data/strings/localization.toml")
+	);
+
+	let invalid = source.replace(
+		"catalog = \"data/strings/localization.toml\"",
+		"catalog = 7",
+	);
+	assert!(
+		Settings::from_manifest(&invalid)
+			.unwrap_err()
+			.to_string()
+			.contains("catalog")
+	);
+}
+
+#[test]
+fn shared_catalog_is_resolved_relative_to_the_consuming_package() {
+	let fixture = Fixture::new();
+	fixture.catalogs();
+	fixture.write("data/strings/localization#preview.toml", configuration());
+	let package = fixture.0.join("consumer");
+	fs::create_dir(&package).unwrap();
+	let settings = Settings::from_manifest(
+		"[package.metadata.localization]\ncatalog = \"../data/strings/localization#preview.toml\"",
+	)
+	.unwrap();
+	let output = package.join("target/generated");
+	generate(&package, &output, &settings).unwrap();
+	let metadata = fs::read_to_string(output.join("locale_modules.rs")).unwrap();
+	let generated = fs::read_to_string(output.join("translations.rs")).unwrap();
+
+	assert!(
+		metadata.contains("CATALOG_PATH: &str = \"../data/strings/localization#preview.toml\"")
+	);
+	assert!(metadata.contains("ui/main.ftl"));
+	assert!(generated.contains("embed_manifest"));
+	assert!(output.join("modules/ui/main/translations.rs").is_file());
+
+	#[cfg(feature = "manifest")]
+	{
+		let manifest =
+			crate::LocalizationManifest::from_file(package.join(&settings.catalog)).unwrap();
+		let bytes = manifest.read("fr", "ui/main.ftl").unwrap();
+		assert_eq!(bytes.as_ref(), b"greeting = Hello { $name }\n");
+		assert!(manifest.read("fr", "../ui/main.ftl").is_err());
 	}
 }
 
@@ -145,8 +209,8 @@ fn discovers_all_languages_and_nested_modules_in_a_relocated_catalog() {
 		assert!(generated.contains(&format!("\"{language}\" =>")));
 	}
 
-	assert!(manifest.contains("ASSET_ROOT: &str = \"data\""));
-	assert!(manifest.contains("CATALOG_ASSET_PATH: &str = \"strings/localization.toml\""));
+	assert!(manifest.contains("CATALOG_PATH: &str = \"data/strings/localization.toml\""));
+	assert!(!manifest.contains("ASSET_ROOT"));
 	assert!(manifest.contains("DEFAULT_LANGUAGE: &str = \"pt-BR\""));
 	assert!(output.join("modules/ui/main/translations.ftl").is_file());
 	assert!(!fixture.0.join("src").exists());
@@ -292,7 +356,9 @@ fn extension_reservations_and_output_paths_are_checked_before_writing() {
 		);
 	}
 
-	let error = crate::generate_with(&fixture.0, &output, &settings, &TestExtension).unwrap_err();
+	let error = crate::generate_with(&fixture.0, &output, &settings, &TestExtension)
+		.unwrap_err()
+		.to_string();
 	assert!(error.contains("reserved by the extension"), "{error}");
 	assert!(!output.exists());
 	generate(&fixture.0, &output, &settings).unwrap();
@@ -310,6 +376,7 @@ fn detects_missing_languages_modules_and_incompatible_contracts() {
 	assert!(
 		generate(&fixture.0, &output, &settings)
 			.unwrap_err()
+			.to_string()
 			.contains("ja")
 	);
 	fixture.write("data/strings/localization.toml", configuration());
@@ -321,6 +388,7 @@ fn detects_missing_languages_modules_and_incompatible_contracts() {
 	assert!(
 		generate(&fixture.0, &output, &settings)
 			.unwrap_err()
+			.to_string()
 			.contains("fr")
 	);
 
@@ -335,6 +403,7 @@ fn detects_missing_languages_modules_and_incompatible_contracts() {
 	assert!(
 		generate(&fixture.0, &output, &settings)
 			.unwrap_err()
+			.to_string()
 			.contains("module paths")
 	);
 }
@@ -348,7 +417,9 @@ fn renamed_translation_reports_missing_and_extra_paths_without_changing_sources(
 	fs::rename(&original, &renamed).unwrap();
 	let source = fs::read(&renamed).unwrap();
 	let output = fixture.0.join("target/generated");
-	let error = generate(&fixture.0, &output, &settings).unwrap_err();
+	let error = generate(&fixture.0, &output, &settings)
+		.unwrap_err()
+		.to_string();
 
 	assert!(error.contains("source-language `de`"));
 	assert!(error.contains("Missing in `fr`:"));
@@ -377,7 +448,9 @@ fn accepts_duplicate_keys_across_modules_but_rejects_them_inside_one_file() {
 		"data/strings/languages/de/duplicate.ftl",
 		"greeting = One\ngreeting = Two\n",
 	);
-	let error = generate(&fixture.0, &fixture.0.join("target/generated"), &settings).unwrap_err();
+	let error = generate(&fixture.0, &fixture.0.join("target/generated"), &settings)
+		.unwrap_err()
+		.to_string();
 	assert!(error.contains("duplicate Fluent key"), "{error}");
 }
 
@@ -391,6 +464,7 @@ fn rejects_missing_invalid_and_empty_configuration_files() {
 	assert!(
 		generate(&fixture.0, &output, &settings)
 			.unwrap_err()
+			.to_string()
 			.contains("localization.toml")
 	);
 
@@ -411,7 +485,7 @@ fn namespace_collisions_reserved_names_and_file_directory_ambiguity_are_actionab
 		(vec!["ui/self.ftl"], "cannot identify"),
 	] {
 		let paths: Vec<_> = paths.into_iter().map(String::from).collect();
-		let error = super::tree::Node::build(&paths).err().unwrap();
+		let error = super::tree::Node::build(&paths).err().unwrap().to_string();
 		assert!(error.contains(expected), "{error}");
 	}
 
@@ -447,7 +521,9 @@ fn cross_file_references_are_rejected_instead_of_silently_sharing_a_bundle() {
 		);
 	}
 
-	let error = generate(&fixture.0, &fixture.0.join("target/generated"), &settings).unwrap_err();
+	let error = generate(&fixture.0, &fixture.0.join("target/generated"), &settings)
+		.unwrap_err()
+		.to_string();
 	assert!(error.contains("second.ftl"), "{error}");
 	assert!(error.contains("title"), "{error}");
 }
@@ -458,7 +534,7 @@ fn local_reference_validation_covers_terms_attributes_missing_targets_and_cycles
 		"-brand = LEGAM\ntitle = { -brand }\n    .hint = Help\ncaption = { title.hint }\n",
 	)
 	.unwrap();
-	super::references::validate(&valid).unwrap();
+	super::references::validate(&valid, Path::new("test.ftl")).unwrap();
 
 	for (source, expected) in [
 		("caption = { -missing }\n", "-missing"),
@@ -467,7 +543,9 @@ fn local_reference_validation_covers_terms_attributes_missing_targets_and_cycles
 		("title = { title }\n", "cyclic"),
 	] {
 		let schema = crate::schema::schema(source).unwrap();
-		let error = super::references::validate(&schema).unwrap_err();
+		let error = super::references::validate(&schema, Path::new("test.ftl"))
+			.unwrap_err()
+			.to_string();
 		assert!(error.contains(expected), "{error}");
 	}
 }
@@ -486,15 +564,17 @@ fn configured_language_directory_cannot_bypass_symlink_checks() {
 		"data/strings/localization.toml",
 		&configuration().replace("\"languages\"", "\"alias\""),
 	);
-	let error = generate(&fixture.0, &fixture.0.join("target/generated"), &settings).unwrap_err();
+	let error = generate(&fixture.0, &fixture.0.join("target/generated"), &settings)
+		.unwrap_err()
+		.to_string();
 	assert!(error.contains("symbolic links"), "{error}");
 }
 
 #[test]
-fn explicit_settings_reject_invalid_asset_paths_too() {
+fn explicit_settings_reject_invalid_catalog_paths_too() {
 	let fixture = Fixture::new();
 	let mut settings = fixture.catalogs();
-	settings.catalog = Path::new("../escape.toml").into();
+	settings.catalog = Path::new("/absolute/localization.toml").into();
 	assert!(generate(&fixture.0, &fixture.0.join("target/generated"), &settings).is_err());
 }
 
@@ -510,7 +590,9 @@ fn symlinked_languages_and_modules_cannot_bypass_discovery_or_recurse_forever() 
 		fixture.0.join("data/strings/languages/es"),
 	)
 	.unwrap();
-	let error = generate(&fixture.0, &fixture.0.join("target/generated"), &settings).unwrap_err();
+	let error = generate(&fixture.0, &fixture.0.join("target/generated"), &settings)
+		.unwrap_err()
+		.to_string();
 	assert!(error.contains("symbolic links"), "{error}");
 
 	let nested = Fixture::new();
@@ -520,6 +602,8 @@ fn symlinked_languages_and_modules_cannot_bypass_discovery_or_recurse_forever() 
 		nested.0.join("data/strings/languages/de/ui/loop"),
 	)
 	.unwrap();
-	let error = generate(&nested.0, &nested.0.join("target/generated"), &settings).unwrap_err();
+	let error = generate(&nested.0, &nested.0.join("target/generated"), &settings)
+		.unwrap_err()
+		.to_string();
 	assert!(error.contains("symbolic links"), "{error}");
 }

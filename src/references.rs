@@ -1,11 +1,12 @@
 //! Resolve references inside a module before upstream generation loses file scope.
-use crate::schema::Schema;
+use crate::{BuildError, schema::Schema};
 use std::collections::{BTreeMap, BTreeSet};
+use std::path::Path;
 
 /// Check same-file message/term targets and reject reference cycles.
 /// Does not validate variable types or function availability; upstream separately
 /// checks typed contracts.
-pub(super) fn validate(schema: &Schema) -> Result<(), String> {
+pub(super) fn validate(schema: &Schema, path: &Path) -> Result<(), BuildError> {
 	let mut edges = BTreeMap::new();
 
 	for (key, references) in schema {
@@ -21,9 +22,11 @@ pub(super) fn validate(schema: &Schema) -> Result<(), String> {
 			};
 
 			if !schema.contains_key(&target) {
-				return Err(format!(
-					"`{key}` references `{target}`, which is not defined in this FTL module. Modules have independent namespaces; cross-file references require an explicit shared-resource policy."
-				));
+				return Err(BuildError::UndefinedReference {
+					path: path.into(),
+					key: key.clone(),
+					target,
+				});
 			}
 
 			targets.push(target);
@@ -36,7 +39,7 @@ pub(super) fn validate(schema: &Schema) -> Result<(), String> {
 	let mut visiting = BTreeSet::new();
 
 	for key in schema.keys() {
-		visit(key, &edges, &mut visiting, &mut visited)?;
+		visit(key, path, &edges, &mut visiting, &mut visited)?;
 	}
 
 	Ok(())
@@ -44,20 +47,24 @@ pub(super) fn validate(schema: &Schema) -> Result<(), String> {
 
 fn visit(
 	key: &str,
+	path: &Path,
 	edges: &BTreeMap<String, Vec<String>>,
 	visiting: &mut BTreeSet<String>,
 	visited: &mut BTreeSet<String>,
-) -> Result<(), String> {
+) -> Result<(), BuildError> {
 	if visited.contains(key) {
 		return Ok(());
 	}
 
 	if !visiting.insert(key.to_owned()) {
-		return Err(format!("cyclic Fluent reference involving `{key}`"));
+		return Err(BuildError::CyclicReference {
+			path: path.into(),
+			key: key.into(),
+		});
 	}
 
 	for target in &edges[key] {
-		visit(target, edges, visiting, visited)?;
+		visit(target, path, edges, visiting, visited)?;
 	}
 
 	visiting.remove(key);

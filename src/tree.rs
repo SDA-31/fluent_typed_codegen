@@ -1,4 +1,5 @@
 //! Deterministic Rust namespaces derived from complete relative FTL paths.
+use crate::{BuildError, NameError};
 use std::collections::BTreeMap;
 
 #[derive(Default)]
@@ -14,14 +15,19 @@ pub(super) struct Node {
 }
 
 impl Node {
-	pub fn build(paths: &[String]) -> Result<Self, String> {
+	pub fn build(paths: &[String]) -> Result<Self, BuildError> {
 		let mut root = Self {
 			ty: "Translations".into(),
 			..Self::default()
 		};
 
 		for (index, path) in paths.iter().enumerate() {
-			let stem = path.strip_suffix(".ftl").ok_or("module must end in .ftl")?;
+			let stem = path
+				.strip_suffix(".ftl")
+				.ok_or_else(|| BuildError::InvalidName {
+					name: path.clone(),
+					reason: NameError::ExpectedFtl,
+				})?;
 			let mut parent = &mut root;
 
 			for (depth, part) in stem.split('/').enumerate() {
@@ -37,9 +43,12 @@ impl Node {
 						| "locale" | "new" | "new_unchecked"
 						| "validate" | "from_manifest"
 				) {
-					return Err(format!(
-						"{path}: generated name `{ty}` or `{name}` is reserved by the catalog API"
-					));
+					return Err(BuildError::ReservedName {
+						path: path.clone(),
+						name,
+						ty,
+						extension: false,
+					});
 				}
 
 				if depth == 0
@@ -51,26 +60,29 @@ impl Node {
 								| "validate_modules" | "load_all"
 								| "load_all_unchecked" | "embed_manifest"
 						)) {
-					return Err(format!(
-						"{path}: generated name `{ty}` or `{name}` is reserved by the catalog API"
-					));
+					return Err(BuildError::ReservedName {
+						path: path.clone(),
+						name,
+						ty,
+						extension: false,
+					});
 				}
 
 				if parent.leaf.is_some() {
-					return Err(format!(
-						"{path}: a module cannot be both a file and a directory ({})",
-						parent.path
-					));
+					return Err(BuildError::FileDirectoryCollision {
+						path: path.clone(),
+						node: parent.path.clone(),
+					});
 				}
 
 				if let Some(existing) = parent.children.values().find(|child| {
 					(child.name == name || child.ty == ty)
 						&& child.path.rsplit('/').next() != Some(part)
 				}) {
-					return Err(format!(
-						"{path}: Rust namespace collision with `{}` after converting names to snake_case/PascalCase",
-						existing.path
-					));
+					return Err(BuildError::NamespaceCollision {
+						path: path.clone(),
+						other: existing.path.clone(),
+					});
 				}
 
 				let full = if parent.path.is_empty() {
@@ -87,10 +99,10 @@ impl Node {
 			}
 
 			if !parent.children.is_empty() || parent.leaf.is_some() {
-				return Err(format!(
-					"{path}: a module cannot be both a file and a directory ({})",
-					parent.path
-				));
+				return Err(BuildError::FileDirectoryCollision {
+					path: path.clone(),
+					node: parent.path.clone(),
+				});
 			}
 
 			parent.leaf = Some(index);
@@ -102,15 +114,16 @@ impl Node {
 
 /// Convert one ASCII source-path component into snake_case and PascalCase names.
 /// Reject invalid identifiers and keywords that cannot use a raw Rust identifier.
-pub(super) fn names(source: &str) -> Result<(String, String), String> {
+pub(super) fn names(source: &str) -> Result<(String, String), BuildError> {
 	if source.is_empty()
 		|| !source
 			.bytes()
 			.all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
 	{
-		return Err(format!(
-			"invalid module/language name `{source}`: use ASCII letters, digits, underscores or hyphens"
-		));
+		return Err(BuildError::InvalidName {
+			name: source.into(),
+			reason: NameError::InvalidCharacters,
+		});
 	}
 
 	let characters: Vec<_> = source.chars().collect();
@@ -159,9 +172,10 @@ pub(super) fn names(source: &str) -> Result<(String, String), String> {
 		|| !ty.as_bytes()[0].is_ascii_alphabetic()
 		|| matches!(snake.as_str(), "self" | "super" | "crate")
 	{
-		return Err(format!(
-			"`{source}` cannot identify a generated Rust module/type"
-		));
+		return Err(BuildError::InvalidName {
+			name: source.into(),
+			reason: NameError::InvalidIdentifier,
+		});
 	}
 
 	// Raw identifiers preserve meaningful names such as `type.ftl` and `match.ftl`.
