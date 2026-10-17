@@ -165,7 +165,8 @@ jobs:
           cargo clean --locked --offline --workspace --manifest-path Cargo.toml --target-dir "$CARGO_TARGET_DIR"
           cargo clean --locked --offline --workspace --manifest-path examples/minimal/Cargo.toml --target-dir "$CARGO_TARGET_DIR"
           cargo clean --locked --offline --doc --target-dir "$CARGO_TARGET_DIR"
-          cargo clean --locked --offline --target-dir "$CARGO_TARGET_DIR/package"
+          # Cargo's package staging directory is not a standalone target directory.
+          rm -rf -- "${CARGO_TARGET_DIR:?}/package"
       - name: Save compiled dependencies for descendant PRs
         if: ${{ github.ref == 'refs/heads/main' && steps.dependencies.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5
