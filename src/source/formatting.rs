@@ -3,7 +3,7 @@ use crate::{BuildError, SyntaxNode};
 use proc_macro2::TokenStream;
 use syn::visit::{self, Visit};
 
-pub(super) fn format(tokens: TokenStream, filename: &str) -> Result<String, BuildError> {
+pub(crate) fn format(tokens: TokenStream, filename: &str) -> Result<String, BuildError> {
 	let file = syn::parse2(tokens).map_err(|source| BuildError::Syntax {
 		file: filename.into(),
 		source,
@@ -115,54 +115,5 @@ impl<'ast> Visit<'ast> for StructuredSyntax {
 }
 
 #[cfg(test)]
-mod tests {
-	use super::format;
-	use quote::quote;
-
-	#[test]
-	fn opaque_syntax_is_a_diagnostic_including_inside_nested_scopes() {
-		for tokens in [
-			quote!(
-				fn declared();
-			),
-			quote!(
-				mod nested {
-					fn declared();
-				}
-			),
-			quote!(
-				fn outer() {
-					fn declared();
-				}
-			),
-			quote!(
-				use {::std::fmt};
-			),
-		] {
-			let error = format(tokens, "adapter.rs").unwrap_err().to_string();
-
-			assert!(error.contains("generated Rust `adapter.rs`"), "{error}");
-			assert!(error.contains("Verbatim"), "{error}");
-		}
-	}
-
-	#[test]
-	fn macro_tokens_are_not_mistaken_for_unsupported_rust_syntax() {
-		let output = format(
-			quote! {
-				macro_rules! custom {
-					($value:expr) => { $value };
-				}
-
-				fn value() -> u8 {
-					custom!(7)
-				}
-			},
-			"adapter.rs",
-		)
-		.unwrap();
-
-		assert!(output.contains("fn value() -> u8"));
-		assert!(syn::parse_file(&output).is_ok());
-	}
-}
+#[path = "tests/formatting.rs"]
+mod tests;

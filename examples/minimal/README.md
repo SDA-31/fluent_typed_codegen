@@ -95,9 +95,9 @@ No source files are modified by running the example.
 The test module is loaded only by `cargo test`; it shares the application's small
 plural-category helper without exposing a new public example API.
 
-Standalone clones need no sibling checkout or generator patch. The initial
-dependency resolution creates a local ignored Cargo.lock; add `--locked --offline`
-on later runs. In an enclosing workspace the package can be a member named
+Standalone clones need no sibling checkout or generator patch. The example's
+Cargo.lock is tracked; use `--locked`, adding `--offline` once dependencies are
+cached. In an enclosing workspace the package can be a member named
 `fluent-codegen-example`, using that workspace's lockfile. An all-features workspace
 check intentionally enables more than this consumer's normal feature graph.
 

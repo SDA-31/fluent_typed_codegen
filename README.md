@@ -573,11 +573,16 @@ cargo test --manifest-path Cargo.toml
 cargo doc --manifest-path Cargo.toml --no-deps
 ```
 
-These commands work from a standalone generator checkout. Add `--locked --offline`
-after the first dependency resolution. The local lockfile and target directory
-are ignored; a consuming workspace owns its own lockfile.
+These commands work from a standalone generator checkout. The repository tracks
+Cargo.lock, so add `--locked` for reproducible dependency resolution and `--offline`
+once dependencies are cached. The target directory is ignored; a consuming
+workspace owns its own lockfile.
 The [bundled example](examples/minimal/README.md) uses repository-local paths for
 development; external applications use the registry dependencies in Setup.
+
+Multi-file modules use a `mod.rs` facade with named implementation files and a
+local `tests/` directory. Generation scenarios live in `src/generation/tests/`;
+manifest, configuration, schema and diagnostics tests stay with their modules.
 
 ### Work on local checkouts
 
@@ -607,8 +612,8 @@ are ignored; tags and manual dispatch still run checks. It checks this repositor
 - Formatting, Clippy with warnings denied, Rustdoc in both feature modes and
   compilation of the packaged archive on Linux.
 
-CI checks nested examples explicitly and resolves fresh standalone lockfiles
-before using `--locked`; no enclosing application is needed. All platforms exercise
+CI checks nested examples explicitly and uses the tracked standalone lockfiles
+with `--locked`; no enclosing application is needed. All platforms exercise
 spaced paths, and Unix also covers quoted paths.
 
 Actions are pinned to commit SHAs with `contents: read` permission and no retained

@@ -1,4 +1,4 @@
-use crate::{configuration::CatalogConfig, schema};
+use crate::CatalogConfig;
 
 #[test]
 fn catalog_configuration_is_real_strict_toml() {
@@ -60,12 +60,4 @@ fn catalog_directory_defaults_to_siblings_and_accepts_a_legacy_alias() {
 		.to_string();
 		assert!(error.contains("use only translations-directory"), "{error}");
 	}
-}
-
-#[test]
-fn schema_rejects_changed_variables_and_duplicate_messages() {
-	let expected = "hello = Hello { $name }\n";
-	assert!(schema::validate("hello = Hallo { $name }\n", expected).is_ok());
-	assert!(schema::validate("hello = Hallo { $other }\n", expected).is_err());
-	assert!(schema::validate("hello = A\nhello = B\n", expected).is_err());
 }

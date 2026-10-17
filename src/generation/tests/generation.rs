@@ -1,4 +1,4 @@
-use super::{Settings, generate};
+use crate::{Settings, generate};
 use std::{
 	fs,
 	path::{Path, PathBuf},
@@ -485,23 +485,23 @@ fn namespace_collisions_reserved_names_and_file_directory_ambiguity_are_actionab
 		(vec!["ui/self.ftl"], "cannot identify"),
 	] {
 		let paths: Vec<_> = paths.into_iter().map(String::from).collect();
-		let error = super::tree::Node::build(&paths).err().unwrap().to_string();
+		let error = crate::tree::Node::build(&paths).err().unwrap().to_string();
 		assert!(error.contains(expected), "{error}");
 	}
 
 	assert_eq!(
-		super::tree::names("HTTP-status").unwrap(),
+		crate::tree::names("HTTP-status").unwrap(),
 		("http_status".into(), "HttpStatus".into())
 	);
 	assert_eq!(
-		super::tree::names("type").unwrap(),
+		crate::tree::names("type").unwrap(),
 		("r#type".into(), "Type".into())
 	);
 
-	let root = super::tree::Node::build(&[String::from("catalog.ftl")]).unwrap();
+	let root = crate::tree::Node::build(&[String::from("catalog.ftl")]).unwrap();
 	assert_eq!(root.ty, "Translations");
 	assert_eq!(root.children["catalog"].ty, "Catalog");
-	let keyword = super::tree::Node::build(&[String::from("ui/type.ftl")]).unwrap();
+	let keyword = crate::tree::Node::build(&[String::from("ui/type.ftl")]).unwrap();
 	assert!(crate::render::validate_extension(&keyword, Some(&TestExtension)).is_err());
 }
 
@@ -534,7 +534,7 @@ fn local_reference_validation_covers_terms_attributes_missing_targets_and_cycles
 		"-brand = LEGAM\ntitle = { -brand }\n    .hint = Help\ncaption = { title.hint }\n",
 	)
 	.unwrap();
-	super::references::validate(&valid, Path::new("test.ftl")).unwrap();
+	crate::references::validate(&valid, Path::new("test.ftl")).unwrap();
 
 	for (source, expected) in [
 		("caption = { -missing }\n", "-missing"),
@@ -543,7 +543,7 @@ fn local_reference_validation_covers_terms_attributes_missing_targets_and_cycles
 		("title = { title }\n", "cyclic"),
 	] {
 		let schema = crate::schema::schema(source).unwrap();
-		let error = super::references::validate(&schema, Path::new("test.ftl"))
+		let error = crate::references::validate(&schema, Path::new("test.ftl"))
 			.unwrap_err()
 			.to_string();
 		assert!(error.contains(expected), "{error}");

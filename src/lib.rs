@@ -173,9 +173,6 @@
 mod macros;
 mod manifest;
 
-#[cfg(test)]
-mod manifest_tests;
-
 pub use manifest::LocalizationManifest;
 
 #[cfg(feature = "build")]
@@ -232,9 +229,3 @@ pub use settings::Settings;
 /// Re-exported so adapters do not need to choose a matching Syn major version.
 #[cfg(feature = "build")]
 pub use syn;
-
-#[cfg(all(test, feature = "build"))]
-mod contracts_tests;
-
-#[cfg(all(test, feature = "build"))]
-mod tests;

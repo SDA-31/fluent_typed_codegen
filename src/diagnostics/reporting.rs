@@ -6,7 +6,7 @@ use std::{
 	process::ExitCode,
 };
 
-pub(super) fn build_outcome(
+pub(crate) fn build_outcome(
 	result: Result<(), crate::BuildError>,
 	output: &mut impl Write,
 ) -> ExitCode {
@@ -19,7 +19,7 @@ pub(super) fn build_outcome(
 	ExitCode::FAILURE
 }
 
-pub(super) fn module_mismatch(
+pub(crate) fn module_mismatch(
 	language: &str,
 	source_language: &str,
 	locale_root: &Path,
@@ -64,4 +64,5 @@ pub(super) fn module_mismatch(
 }
 
 #[cfg(test)]
+#[path = "tests/reporting.rs"]
 mod tests;

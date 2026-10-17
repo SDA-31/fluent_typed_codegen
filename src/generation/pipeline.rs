@@ -182,12 +182,10 @@ fn generate_inner(
 	// A single maintained checker serves discovery and generated checked APIs.
 	let validation = format!(
 		"{}\n{}",
-		include_str!("errors/schema.rs").replacen("//!", "//", 1),
-		include_str!("schema.rs").replacen("//!", "//", 1).replacen(
-			"use crate::SchemaError;",
-			"",
-			1
-		),
+		include_str!("../errors/schema.rs").replacen("//!", "//", 1),
+		include_str!("../schema/validation.rs")
+			.replacen("//!", "//", 1)
+			.replacen("use crate::SchemaError;", "", 1),
 	)
 	.replacen(
 		"use fluent_syntax::parser::ParserError;",
