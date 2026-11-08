@@ -2,15 +2,18 @@
 
 This guide upgrades an application using the 0.1.4 API to 0.3.0.
 
-The smallest migration keeps your full translation tree and typed message calls.
-Only initialization, error handling and code that reads embedded metadata change.
-Module-by-module loading is optional.
+The migration keeps your full translation tree and FTL module paths. Update
+initialization, error handling and embedded metadata, and rename structured
+`(Element)` calls such as `prompt()` to `msg_prompt()`. Plain `msg_` accessors
+keep their names. Module-by-module loading is optional.
 
 ## 1. Update both dependency sections
 
 Replace the generator entries in your application's Cargo.toml. Keep your
-FTL layout and the two Fluent runtime dependencies. Update metadata as shown
-in [Catalog-only build configuration](#catalog-only-build-configuration):
+FTL layout; remove direct Fluent dependencies used only by generated translations.
+The `runtime` feature supplies their pinned versions through re-exports.
+Update metadata as shown in
+[Catalog-only build configuration](#catalog-only-build-configuration):
 
 ```toml
 [dependencies]
@@ -145,11 +148,14 @@ uses the public constructors.
 
 ## 5. Verify the application
 
-Run `cargo check` and your application tests. Check startup, every supported
-locale and any external translation pack. Typed message accessor signatures,
-full-tree getters, FTL module paths and number-formatting ownership remain the
-same. Applications still own fallback and caching; this upgrade does not provide
-automatic eviction or eliminate upstream input copying/reparsing.
+Run `cargo check --locked` and your application tests. Check startup, every
+supported locale, a structured `msg_` accessor and any external translation pack.
+Full-tree getters, FTL module paths and application-owned number formatting remain
+unchanged. Leaf constructors now accept `Into<Vec<u8>>`: pass fresh `Vec<u8>` or
+`String` buffers by value; use `.as_slice()` to retain a Vec. File manifests
+transfer acquired buffers automatically, while slices and embedded bytes are
+copied into Fluent's owned source. Validation and parsing still allocate.
+Applications continue to own fallback, caching and module eviction.
 
 [All changes](../../CHANGELOG.md) · [Loading recipes](../loading.md) · [Setup](../../README.md#setup)
 

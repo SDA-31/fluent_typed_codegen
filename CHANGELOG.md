@@ -23,8 +23,9 @@ See the [migration from 0.2.2](docs/migrations/migration-0.2.2.md).
 - **Breaking:** generated structured `(Element)` accessors now use the `msg_`
   message prefix, such as `msg_prompt`, matching plain accessors. Their result
   types and fields are unchanged.
-- **Breaking:** engine-free `translations!` consumers enable `runtime` on the
-  normal dependency. Direct Fluent dependencies are replaced by crate re-exports.
+- **Breaking:** applications using `fluent_typed_codegen::translations!` must
+  enable `runtime` on the normal dependency. Direct Fluent dependencies are
+  replaced by crate re-exports.
 - Use fluent-typed 0.10.1 with explicit language-negotiation generation. Normal
   and host build features remain isolated; the macro-only graph stays dependency-free.
 - Checked loading uses upstream's public message contracts directly. Additional

@@ -190,7 +190,7 @@ on unload. The macro is available only inside the crate declaring `translations!
 
 ## Load and release a module on demand
 
-In the engine-free API, lazy loading means your application calls a constructor
+With the generated API, lazy loading means your application calls a constructor
 when a module is needed. There is no background loader or special `Lazy` type.
 The example below uses the `manifest` dependency feature from the file recipe.
 

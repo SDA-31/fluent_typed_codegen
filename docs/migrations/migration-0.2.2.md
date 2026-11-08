@@ -15,7 +15,7 @@ fluent_typed_codegen = { version = "0.3.0", default-features = false, features =
 
 Keep the existing build.rs call and translations! declaration. Retain the optional
 manifest feature when using file-manifest factories. Bevy consumers use the
-bevy_fluent_typed 0.5.0 facade instead of adding this engine-free graph.
+bevy_fluent_typed 0.5.0 facade instead of declaring these dependencies directly.
 Remove direct `fluent-typed` and `fluent-syntax` dependencies used only by generated
 translations. The `runtime` feature supplies both through version-pinned re-exports,
 including language negotiation. For direct upstream calls, use
