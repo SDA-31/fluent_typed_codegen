@@ -5,7 +5,7 @@ Notable changes are recorded here using
 Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html);
 before 1.0, a minor release can introduce incompatible API changes.
 
-## [0.3.0]
+## [0.3.0] - 2026-11-08
 
 See the [migration from 0.2.2](docs/migrations/migration-0.2.2.md).
 
