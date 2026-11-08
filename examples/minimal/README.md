@@ -19,9 +19,7 @@ For file loading or loading one module on demand, use the separate
 
 ```toml
 [dependencies]
-l10n = { package = "fluent_typed_codegen", path = "../..", default-features = false }
-fluent-typed = { version = "0.9.0", default-features = false, features = ["langneg"] }
-fluent-syntax = "0.12"
+l10n = { package = "fluent_typed_codegen", path = "../..", default-features = false, features = ["runtime"] }
 icu_decimal = { version = "2.3", features = ["alloc"] }
 icu_locale_core = "2.3"
 icu_plurals = "2.3"
@@ -34,9 +32,9 @@ The build script returns `l10n::build()`. Application code declares
 `l10n::translations!(pub mod texts);`, declares `EMBEDDED` with `texts::embed_manifest!`,
 and constructs a checked language with `Translations::from_manifest`. It then
 borrows named translation scopes.
-There is no handwritten OUT_DIR path in the consumer. The macro-only normal
-dependency has no dependencies of its own; the build instance enables generation.
-The two Fluent runtime dependencies retain their standard names.
+There is no handwritten OUT_DIR path in the consumer. The normal dependency
+enables `runtime`, which supplies pinned Fluent libraries through re-exports;
+the build instance enables generation. No separate Fluent dependencies are needed.
 Typed message accessors and Fluent resolution come from
 [fluent-typed](https://github.com/human-solutions/fluent-typed); this crate adds
 module discovery, namespaces and checked leaf/whole-language loading.

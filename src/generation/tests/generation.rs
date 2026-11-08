@@ -16,6 +16,7 @@ mod incremental;
 mod leaf_api;
 mod loading;
 mod syntax;
+mod upstream;
 
 struct Fixture(PathBuf);
 

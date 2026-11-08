@@ -82,7 +82,7 @@ pub trait Extension {
 	}
 
 	/// Decorate a complete root, group or leaf declaration, including its docs,
-	/// clone derive and [`Self::type_attributes`]. The default leaves it unchanged.
+	/// `Clone`/`Debug` derives and [`Self::type_attributes`]. The default leaves it unchanged.
 	/// An adapter may wrap it in a runtime-owned item macro to select attributes
 	/// in the consumer's dependency graph rather than the build script's graph.
 	/// Preserve the declaration's name, visibility, fields and existing attributes:

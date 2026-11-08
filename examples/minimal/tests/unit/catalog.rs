@@ -42,7 +42,7 @@ mod inferred {
 			.unwrap()
 			.presentation()
 			.hud()
-			.prompt()
+			.msg_prompt()
 			.s0
 	}
 }
@@ -92,7 +92,7 @@ fn structured_results_are_nameable_without_exposing_leaf_modules() {
 		(texts::Locale::Ru, "Нажми"),
 	] {
 		let translations = load(locale).unwrap();
-		let prompt: texts::presentation::HudPrompt = translations.presentation().hud().prompt();
+		let prompt: texts::presentation::HudPrompt = translations.presentation().hud().msg_prompt();
 
 		assert!(prompt.s0.starts_with(prefix));
 	}
@@ -191,7 +191,7 @@ fn files(locale: texts::Locale) -> std::collections::BTreeMap<String, String> {
 #[test]
 fn independent_leaf_loading_is_checked_by_default_and_owns_its_input() {
 	let source = b"title = External status\n".to_vec();
-	let title = texts::Type::new(texts::Locale::En, &source).unwrap();
+	let title = texts::Type::new(texts::Locale::En, source.as_slice()).unwrap();
 	drop(source);
 	assert_eq!(title.locale(), texts::Locale::En);
 	assert_eq!(texts::Type::PATH, "type.ftl");
@@ -201,7 +201,7 @@ fn independent_leaf_loading_is_checked_by_default_and_owns_its_input() {
 	assert!(
 		texts::Type::new_unchecked(texts::Locale::En, b"other = valid but incompatible\n").is_ok()
 	);
-	assert!(texts::Type::new_unchecked(texts::Locale::En, &[255]).is_err());
+	assert!(texts::Type::new_unchecked(texts::Locale::En, [255]).is_err());
 	assert!(texts::Type::new_unchecked(texts::Locale::En, b"title = {\n").is_err());
 }
 

@@ -50,8 +50,6 @@ dependencies = [
 name = "fluent-codegen-example"
 version = "0.1.0"
 dependencies = [
- "fluent-syntax",
- "fluent-typed",
  "fluent_typed_codegen",
  "icu_decimal",
  "icu_locale_core",
@@ -79,19 +77,20 @@ dependencies = [
 
 [[package]]
 name = "fluent-typed"
-version = "0.9.0"
+version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a891d692f4ae340e0c0f31dc5825b4e6ce35293326dba5ef4fae37a27de19aa0"
+checksum = "b389a6c714abfda4fdc11ee10705c24f829ed57b8ea24f9e1d0d0105544f4bd9"
 dependencies = [
  "fluent-bundle",
  "fluent-syntax",
  "icu_locale_core",
+ "rustc-hash",
  "unic-langid",
 ]
 
 [[package]]
 name = "fluent_typed_codegen"
-version = "0.2.2"
+version = "0.3.0"
 dependencies = [
  "fluent-syntax",
  "fluent-typed",

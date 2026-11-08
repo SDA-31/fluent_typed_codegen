@@ -143,70 +143,7 @@ fn render_node(
 			quote! {
 				pub struct #ty(::std::sync::Arc<#implementation::L10nLanguage>, Locale);
 			},
-			quote! {
-				/// Logical FTL path below a locale, independent of runtime storage.
-				pub const PATH: &'static str = #module;
-
-				/// Language represented by this immutable module.
-				pub fn locale(&self) -> Locale {
-					self.1
-				}
-
-				/// Validate UTF-8, Fluent syntax and the generated message contract, then load.
-				///
-				/// # Errors
-				/// Rejects invalid or incompatible FTL. No input borrow is retained.
-				pub fn new(locale: Locale, bytes: &[u8]) -> ::std::result::Result<Self, LoadError> {
-					Self::validate(bytes).map_err(|error| match error {
-						LoadError::Module { path, message, .. } => LoadError::Module {
-							locale: ::std::option::Option::Some(locale), path, message,
-						},
-						other => other,
-					})?;
-					Self::new_unchecked(locale, bytes)
-				}
-
-				/// Load UTF-8 FTL without checking its generated message contract.
-				///
-				/// This safe method still parses Fluent. Incompatible messages can cause
-				/// accessor panics or formatting failures. No input borrow is retained.
-				///
-				/// # Errors
-				/// Rejects invalid UTF-8 or Fluent syntax.
-				pub fn new_unchecked(locale: Locale, bytes: &[u8]) -> ::std::result::Result<Self, LoadError> {
-					#implementation::L10nLanguage::new(locale, bytes)
-						.map(|catalog| Self(::std::sync::Arc::new(catalog), locale))
-						.map_err(|error| LoadError::Module {
-							locale: ::std::option::Option::Some(locale), path: Self::PATH.into(), message: error.to_string(),
-						})
-				}
-
-				/// Check the module contract without retaining a parsed catalog.
-				///
-				/// Parsing uses temporary allocations; a later constructor parses again.
-				///
-				/// # Errors
-				/// Rejects invalid UTF-8, Fluent syntax or changed keys/references/contracts.
-				pub fn validate(bytes: &[u8]) -> ::std::result::Result<(), LoadError> {
-					let check = || -> ::std::result::Result<(), ::std::string::String> {
-						let source = ::std::str::from_utf8(bytes).map_err(|error| error.to_string())?;
-						__validation::validate_schema(source, &[#(#entries,)*]).map_err(|error| error.to_string())?;
-						#implementation::__validate(bytes).map_err(|error| error.to_string())
-					};
-					check().map_err(|message| LoadError::Module {
-						locale: ::std::option::Option::None, path: Self::PATH.into(), message,
-					})
-				}
-
-				/// Read and validate this module from an explicit file or embedded manifest.
-				///
-				/// # Errors
-				/// Returns source, UTF-8, syntax or message-contract diagnostics.
-				pub fn from_manifest(locale: Locale, manifest: &LocalizationManifest) -> ::std::result::Result<Self, LoadError> {
-					let bytes = manifest.read(locale.as_ref(), Self::PATH)?;
-					Self::new(locale, &bytes)
-				}
-			},
+			crate::leaf_constructors::render(&implementation, &module, entries.collect()),
 			quote! {
 				let source = sources.get(#module)
 					.ok_or_else(|| LoadError::MissingModules {
@@ -286,12 +223,36 @@ fn render_node(
 	let declaration = parse_quote! {
 		#[doc = #description]
 		#[derive(Clone)]
+		#[derive(Debug)]
 		#(#attributes)*
 		#definition
 	};
 	let declaration = match extension {
 		Some(extension) => extension.type_declaration(declaration),
 		None => syn::Item::Struct(declaration),
+	};
+
+	let owned = if node.leaf.is_some() {
+		let module = format!("{}.ftl", node.path);
+
+		quote! {
+			let bytes = sources.remove(#module).ok_or_else(|| LoadError::MissingModules {
+				locale: ::std::option::Option::Some(locale), paths: ::std::vec![#module.into()],
+			})?;
+
+			if checked {
+				Self::new(locale, bytes.into_owned())
+			} else {
+				Self::new_unchecked(locale, bytes.into_owned())
+			}
+		}
+	} else {
+		quote! {
+			::std::result::Result::Ok(Self {
+				locale,
+				#(#fields: #types::__from_buffers(locale, sources, checked)?,)*
+			})
+		}
 	};
 
 	let declarations = quote! {
@@ -308,6 +269,14 @@ fn render_node(
 				checked: bool,
 			) -> ::std::result::Result<Self, LoadError> {
 				#external
+			}
+
+			#visibility fn __from_buffers(
+				locale: Locale,
+				sources: &mut ::std::collections::BTreeMap<::std::string::String, ::std::borrow::Cow<'_, [u8]>>,
+				checked: bool,
+			) -> ::std::result::Result<Self, LoadError> {
+				#owned
 			}
 
 			#visibility fn __validate(sources: &::std::collections::BTreeMap<&str, &str>) -> ::std::result::Result<(), LoadError> {

@@ -28,6 +28,7 @@ and Rust checks the arguments at each call site.
 ## Contents
 
 - [Create your first application](#setup)
+- [Migration Guide](docs/migrations/README.md)
 - [Configure paths and languages](#configuration)
 - [Call generated messages](#typed-translation-scopes)
 - [Load files, bytes or individual modules](docs/loading.md)
@@ -72,12 +73,10 @@ edition = "2024"
 rust-version = "1.95"
 
 [build-dependencies]
-fluent_typed_codegen = { version = "0.2.2", default-features = false, features = ["build"] }
+fluent_typed_codegen = { version = "0.3.0", default-features = false, features = ["build"] }
 
 [dependencies]
-fluent_typed_codegen = { version = "0.2.2", default-features = false }
-fluent-typed = { version = "0.9.0", default-features = false, features = ["langneg"] }
-fluent-syntax = "0.12"
+fluent_typed_codegen = { version = "0.3.0", default-features = false, features = ["runtime"] }
 
 [package.metadata.localization]
 catalog = "assets/localizations/localization.toml"
@@ -181,7 +180,8 @@ Paths and language policy live in two small TOML sections:
 
 Omit `translations-directory` when `en/`, `es/` and the other locale folders sit
 beside the catalog TOML. The legacy `languages-directory` alias is accepted;
-specifying both names is an error. The generator does not guess directory names.
+specifying both names is an error. The generator does not guess directory names. Hidden directories such as
+`.history` are ignored at every level; symbolic links remain unsupported.
 
 The application selects its initial locale. `default-language` records that policy;
 `Locale::default()` identifies the **source** language.
@@ -227,12 +227,20 @@ The generated API accepts readable bytes without prescribing storage. These are
 the available operations; [complete programs](docs/loading.md) show the inputs:
 
 ```rust
-let hud = texts::presentation::Hud::new(locale, &bytes)?;
-let unchecked = texts::presentation::Hud::new_unchecked(locale, &bytes)?;
+let hud = texts::presentation::Hud::new(locale, bytes.as_slice())?;
+let unchecked = texts::presentation::Hud::new_unchecked(locale, bytes.as_slice())?;
 texts::presentation::Hud::validate(&bytes)?;
 let path = texts::presentation::Hud::PATH;
 let locale = hud.locale();
 ```
+
+Both constructors accept `Into<Vec<u8>>`, matching fluent-typed. Pass a fresh
+`Vec<u8>` or `String` by value to transfer its allocation into the Fluent resource.
+Pass `bytes.as_slice()` when retaining a buffer; the constructor copies that
+slice once. `&Vec<u8>` needs this explicit slice conversion. `from_manifest`
+automatically consumes file buffers and copies embedded bytes once. Parsing and
+validation still allocate their own structures. Generated scopes also implement
+`Debug`, so loading results support `unwrap_err()`.
 
 Checked loading validates exact keys/references and upstream typed contracts.
 `new_unchecked` is a **safe** method that skips those compatibility checks; UTF-8
@@ -303,10 +311,8 @@ enters the binary. Static embedded bytes outlive dropped parsed catalogs. The ge
 macro is crate-local, including inside a `pub mod texts`; a library can expose
 its own manifest constant alongside catalog aliases.
 
-Upgrading from 0.2.1? Follow the [0.2.2 migration](docs/migration-0.2.2.md).
-
-Upgrading from 0.1.4? Follow the [migration guide](docs/migration-0.2.md)
-for before/after constructors, error handling, metadata and manual includes.
+Upgrading an existing application? Use the [Migration Guide](docs/migrations/README.md)
+to choose the upgrade path from your current version.
 
 ### Naming and references
 
@@ -449,11 +455,11 @@ implement a rendering engine.
 
 | Symptom | What to check |
 | --- | --- |
-| `Hud::new`, `from_manifest` or `embed_manifest!` is missing | Use version 0.2.2 from [Setup](#setup) in **both** Cargo sections. Published 0.1.4 uses the previous API. |
-| `embed_manifest!` rejects a constant declaration | Use 0.2.2 in both normal and build dependencies. Selectors are relative schema paths, not application aliases. |
+| `Hud::new`, `from_manifest` or `embed_manifest!` is missing | Use version 0.3.0 from [Setup](#setup) in **both** Cargo sections. Published 0.1.4 uses the previous API. |
+| `embed_manifest!` rejects a constant declaration | Use 0.3.0 in both normal and build dependencies. Selectors are relative schema paths, not application aliases. |
 | `translations!` cannot find `OUT_DIR` or `translations.rs` | Add the [build.rs](#2-run-generation-from-buildrs) beside the application's Cargo.toml and enable `build` on its build dependency. Resolve any earlier generation error first. |
 | `LocalizationManifest::from_file` or `parse` is missing | Enable `manifest` on the **normal** dependency, as in the [file recipe](docs/loading.md#read-files-through-a-manifest). A build dependency's features do not enable runtime APIs. |
-| Generated code cannot resolve `fluent_typed` or `fluent_syntax` | Keep `fluent-typed` and `fluent-syntax` under those canonical dependency names in the application's `[dependencies]`. |
+| `translations!` asks for `runtime`, or manual output cannot resolve Fluent imports | Enable `runtime` on the **normal** dependency, as in [Setup](#setup). For manual inclusion, import `fluent_typed_codegen::{fluent_syntax, fluent_typed}`. |
 | Runtime file loading reports a missing file | Run the recipe from the application directory. In a packaged application, pass the installed TOML path; retain its relative translation layout. The build-time `catalog` setting does not set the runtime working directory. |
 | Loading reports missing, duplicate or unexpected modules | Pass each logical path once, without a locale prefix. `from_modules` needs a complete language; use `Hud::new` for just one leaf. |
 | `load_all` reports missing languages | Supply every compiled locale. To keep only one language, use `from_modules` or `from_manifest`. |
@@ -470,27 +476,28 @@ Your application decides when to replace or release each loaded module.
 | Feature selection | API and dependencies |
 | --- | --- |
 | `build` (default) | Discovery, validation, generation and the typed extension API. Use in build-dependencies. |
-| `default-features = false`, no features | `translations!` plus std-only manifest contracts; zero external dependencies. |
+| `runtime` | `translations!` and re-exported fluent-typed 0.10.1 / fluent-syntax 0.12.0, with versions pinned by this crate. Use in normal dependencies with defaults disabled. |
+| `default-features = false`, no features | Std-only manifest contracts; zero external dependencies. |
 | `manifest` | Runtime TOML parsing and `LocalizationManifest::from_file` / `parse`; no generator or Fluent dependencies. |
 
-The macro declares a module, imports the consumer's `fluent-typed` and
-`fluent-syntax` libraries, and includes Cargo output. Keep those two dependency
-names canonical. The macro crate itself can be renamed, as the example's
-`l10n::translations!` demonstrates. It accepts module attributes, any Rust visibility
-and an optional trailing semicolon inside the invocation.
+The macro declares a module, imports this crate's `fluent_typed` and
+`fluent_syntax` re-exports, and includes Cargo output. No direct Fluent
+dependencies are needed. Their exact versions are selected together with the
+generator and updated in generator releases. The dependency can be renamed,
+as the example's `l10n::translations!` demonstrates. It accepts module attributes,
+any Rust visibility and an optional trailing semicolon inside the invocation.
 
 Use Cargo resolver 2 or 3 (edition 2024 selects 3 unless a workspace overrides it)
-to separate build and normal feature contexts. Syn, quote, prettyplease, TOML
-parsing and upstream code generation stay out of the macro-only instance. A
+to separate build and normal feature contexts. The normal instance enables only
+`runtime`; generator and extension APIs stay behind the host's `build` feature. A
 workspace-wide all-features build may enable them in normal targets; verify
 runtime isolation with an isolated consumer graph.
 
-Manual inclusion supports custom runtime dependency aliases and frontend layouts.
-Import the runtime libraries as `fluent_typed` and `fluent_syntax`, and this crate
-as `__fluent_codegen`, inside the generated module, then include
-`concat!(env!("OUT_DIR"), "/translations.rs")`. The std-only support dependency
-is required even for manual inclusion. Framework bridges may re-export it and
-the Fluent runtime libraries under those aliases.
+Manual inclusion supports custom frontend layouts. With `runtime` enabled,
+import `fluent_typed_codegen::{fluent_typed, fluent_syntax}` and
+`fluent_typed_codegen as __fluent_codegen` inside the generated module, then
+include `concat!(env!("OUT_DIR"), "/translations.rs")`. Framework bridges may
+re-export the support crate and Fluent libraries under those aliases.
 
 ## Outputs and indexing
 
@@ -606,10 +613,10 @@ only the registry dependency declarations from Setup.
 requests and manual dispatch. Branch pushes and PRs changing only `CHANGELOG.md`
 are ignored; tags and manual dispatch still run checks. It checks this repository independently:
 
-- Generator/manifest tests, doctests, macro-only dependency isolation, optional
+- Generator/manifest tests, doctests, runtime and macro-only dependency isolation, optional
   parser-only builds, opt-in embedding compilation and the generated consumer on Linux, Windows and macOS with stable Rust.
 - The same test suite on Linux with the declared minimum Rust 1.95.0.
-- Formatting, Clippy with warnings denied, Rustdoc in both feature modes and
+- Formatting, Clippy with warnings denied, Rustdoc with build/runtime/std-only features and
   compilation of the packaged archive on Linux.
 
 CI checks nested examples explicitly and uses the tracked standalone lockfiles

@@ -8,7 +8,32 @@ fn schema_only_compiles_without_ftl_and_checked_loading_enforces_upstream_contra
 	let fixture = Fixture::new();
 	fixture.catalogs();
 	let output = fixture.0.join("generated");
-	let contract = "language-name = EMBED_PAYLOAD_SENTINEL_482917\n# $enabled (Bool) - State.\nflag = { $enabled ->\n    [true] Enabled\n   *[false] Disabled\n}\n# $icon (Element) - Slot.\nprompt = Press { $icon } now\n";
+	let contract = r#"language-name = EMBED_PAYLOAD_SENTINEL_482917 "quoted" \ language
+# $enabled (Bool) - State.
+flag = { $enabled ->
+    [true] Enabled
+   *[false] Disabled
+}
+# $icon (Element) - Slot.
+prompt = Press { $icon } now
+# $type (String) - Keyword argument.
+keyword-type = { $type }
+# $match (String) - Keyword argument.
+keyword-match = { $match }
+# $self (String) - Receiver keyword.
+keyword-self = { $self }
+# $Self (String) - Type keyword.
+keyword-self-type = { $Self }
+# $super (String) - Parent keyword.
+keyword-super = { $super }
+# $crate (String) - Crate keyword.
+keyword-crate = { $crate }
+# $args (String) - Previously shadowed by the accessor's argument map.
+local-args = { $args }
+# $segments (String) - Previously shadowed by structured output.
+# $icon (Element) - Slot.
+segment-sample = { $segments } { $icon } tail
+"#;
 	let mut originals = Vec::new();
 
 	for language in ["de", "fr", "pt-BR"] {
@@ -51,9 +76,7 @@ version = "0.0.0"
 edition = "2024"
 [workspace]
 [dependencies]
-l10n = {{ package = "fluent_typed_codegen", path = {generator:?}, default-features = false }}
-fluent-typed = {{ version = "0.9.0", default-features = false, features = ["langneg"] }}
-fluent-syntax = "0.12"
+l10n = {{ package = "fluent_typed_codegen", path = {generator:?}, default-features = false, features = ["runtime"] }}
 "#
 		),
 	);
@@ -63,8 +86,8 @@ fluent-syntax = "0.12"
 #[allow(dead_code, clippy::derivable_impls, clippy::too_many_arguments)]
 pub mod texts {{
     use l10n as __fluent_codegen;
-    use fluent_typed;
-    use fluent_syntax;
+    use l10n::fluent_typed;
+    use l10n::fluent_syntax;
     include!({generated:?});
 }}
 "#
@@ -98,19 +121,59 @@ fn standalone_validation_preserves_bool_and_element_contracts() {
     let manifest = texts::embed_manifest!();
     let bytes = manifest.read("de", "ui/options.ftl").unwrap();
     let source = std::str::from_utf8(&bytes).unwrap();
-    let valid = texts::ui::Options::new(texts::Locale::De, &bytes).unwrap();
+    let valid = texts::ui::Options::new(texts::Locale::De, bytes.as_ref()).unwrap();
     assert_eq!(valid.msg_flag(true), "Enabled");
+    let owned = texts::ui::Options::new(texts::Locale::De, bytes.to_vec()).unwrap();
+    assert_eq!(owned.msg_flag(true), valid.msg_flag(true));
+    let string = texts::ui::Options::new(texts::Locale::De, source.to_owned()).unwrap();
+    assert_eq!(string.msg_flag(true), valid.msg_flag(true));
+    assert!(format!("{owned:?}").contains("Options"));
+
+    let prompt: texts::ui::OptionsPrompt = valid.msg_prompt();
+    assert_eq!(prompt.s0, "Press ");
+    assert_eq!(prompt.s1, " now");
+
     let bad_bool = source.replace("[true]", "[maybe]");
     let bad_element = source.replace("Press { $icon } now", "Press { $icon } then { $icon }");
 
     for bad in [bad_bool, bad_element] {
         assert!(texts::ui::Options::validate(bad.as_bytes()).is_err());
-        assert!(texts::ui::Options::new(texts::Locale::De, bad.as_bytes()).is_err());
+        let borrowed_error = texts::ui::Options::new(texts::Locale::De, bad.as_bytes()).unwrap_err();
+        let owned_error = texts::ui::Options::new(texts::Locale::De, bad.as_bytes().to_vec()).unwrap_err();
+        assert_eq!(borrowed_error.to_string(), owned_error.to_string());
+        assert!(texts::ui::Options::new_unchecked(texts::Locale::De, bad.as_bytes().to_vec()).is_ok());
         assert!(texts::ui::Options::new_unchecked(texts::Locale::De, bad.as_bytes()).is_ok());
     }
 
-    assert_eq!(valid.msg_language_name(), "EMBED_PAYLOAD_SENTINEL_482917");
+    assert_eq!(valid.msg_language_name(), "EMBED_PAYLOAD_SENTINEL_482917 \"quoted\" \\ language");
+
+    for (actual, expected) in [
+        (valid.msg_keyword_type("type"), "type"),
+        (valid.msg_keyword_match("match"), "match"),
+        (valid.msg_keyword_self("self"), "self"),
+        (valid.msg_keyword_self_type("Self"), "Self"),
+        (valid.msg_keyword_super("super"), "super"),
+        (valid.msg_keyword_crate("crate"), "crate"),
+        (valid.msg_local_args("arguments"), "arguments"),
+    ] {
+        assert!(actual.contains(expected), "{actual}");
+    }
+
+    let segments: texts::ui::OptionsSegmentSample = valid.msg_segment_sample("content");
+    assert!(segments.s0.contains("content"));
+    assert_eq!(segments.s1, " tail");
+
     let all = texts::Translations::from_manifest(texts::Locale::De, &manifest).unwrap();
+    let file_manifest = l10n::LocalizationManifest::from_config(
+        manifest.config().clone(),
+        concat!(env!("CARGO_MANIFEST_DIR"), "/data/strings/localization.toml"),
+    );
+    let file_catalog = texts::Translations::from_manifest(texts::Locale::De, &file_manifest).unwrap();
+    let file_leaf = texts::ui::Options::from_manifest(texts::Locale::De, &file_manifest).unwrap();
+    assert_eq!(file_catalog.ui().options().msg_flag(true), file_leaf.msg_flag(true));
+    assert_eq!(file_leaf.msg_flag(true), all.ui().options().msg_flag(true));
+    assert!(format!("{file_catalog:?}").contains("Translations"));
+
     let main = all.ui().main().clone();
     let options = all.ui().options().clone();
     let ui = texts::Ui::__from_parts(texts::Locale::De, main, options).unwrap();
@@ -140,15 +203,62 @@ edition = "2024"
 [workspace]
 resolver = {resolver:?}
 [dependencies]
-l10n = {{ package = "fluent_typed_codegen", path = {generator:?}, default-features = false }}
+l10n = {{ package = "fluent_typed_codegen", path = {generator:?}, default-features = false, features = ["runtime"] }}
 [build-dependencies]
 l10n = {{ package = "fluent_typed_codegen", path = {generator:?}, default-features = false, features = ["build"] }}
 "#));
 		fixture.write(
 			"src/lib.rs",
-			"pub fn contract(value: l10n::LocalizationManifest) -> l10n::LocalizationManifest { value }\n",
+			"pub use l10n::{fluent_syntax, fluent_typed};\npub fn contract(value: l10n::LocalizationManifest) -> l10n::LocalizationManifest { value }\n",
 		);
 		cargo(&fixture, &["check", "--offline", "--quiet"]);
+		let graph = run_cargo(
+			&fixture,
+			&[
+				"tree",
+				"--locked",
+				"--offline",
+				"--edges",
+				"normal",
+				"--prefix",
+				"none",
+				"--format",
+				"{p} features=[{f}]",
+			],
+		);
+		assert!(
+			graph.status.success(),
+			"{}",
+			String::from_utf8_lossy(&graph.stderr)
+		);
+		let graph = String::from_utf8(graph.stdout).unwrap();
+		assert!(graph.contains("fluent-typed v0.10.1"), "{graph}");
+		assert!(graph.contains("fluent-syntax v0.12.0"), "{graph}");
+
+		assert!(
+			graph
+				.lines()
+				.any(|line| line.starts_with("fluent_typed_codegen v")
+					&& line.ends_with("features=[runtime]")),
+			"{graph}"
+		);
+		assert!(
+			graph
+				.lines()
+				.any(|line| line.starts_with("fluent-typed v")
+					&& line.ends_with("features=[langneg]")),
+			"{graph}"
+		);
+
+		for dependency in ["prettyplease", "toml_edit"] {
+			assert!(
+				!graph
+					.lines()
+					.any(|line| line.starts_with(&format!("{dependency} v"))),
+				"{graph}"
+			);
+		}
+
 		fixture.write(
 			"src/lib.rs",
 			"use l10n::build;\npub fn runtime_build() { let _ = build; }\n",
@@ -166,12 +276,41 @@ l10n = {{ package = "fluent_typed_codegen", path = {generator:?}, default-featur
 	}
 }
 
+#[test]
+fn translations_reports_a_missing_runtime_feature_without_leaking_host_features() {
+	let fixture = Fixture::new();
+	let generator = env!("CARGO_MANIFEST_DIR").replace('\\', "/");
+	fixture.write("build.rs", "fn main() {}\n");
+	fixture.write("src/lib.rs", "l10n::translations!(pub mod texts);\n");
+
+	for resolver in ["2", "3"] {
+		fixture.write("Cargo.toml", &format!(r#"[package]
+name = "codegen-missing-runtime-probe"
+version = "0.0.0"
+edition = "2024"
+[workspace]
+resolver = {resolver:?}
+[dependencies]
+l10n = {{ package = "fluent_typed_codegen", path = {generator:?}, default-features = false }}
+[build-dependencies]
+l10n = {{ package = "fluent_typed_codegen", path = {generator:?}, default-features = false, features = ["build"] }}
+"#));
+		let output = run_cargo(&fixture, &["check", "--offline", "--quiet"]);
+		let stderr = String::from_utf8_lossy(&output.stderr);
+		assert!(
+			!output.status.success(),
+			"resolver {resolver} leaked host runtime features"
+		);
+		assert!(stderr.contains("enable feature `runtime`"), "{stderr}");
+		assert!(!stderr.contains("OUT_DIR"), "{stderr}");
+	}
+}
+
 fn run_cargo(fixture: &Fixture, args: &[&str]) -> std::process::Output {
 	Command::new(env!("CARGO"))
 		.current_dir(&fixture.0)
 		.args(args)
-		.arg("--target-dir")
-		.arg(fixture.0.join("target"))
+		.env("CARGO_TARGET_DIR", fixture.0.join("target"))
 		.output()
 		.unwrap()
 }
