@@ -4,13 +4,13 @@
 //! [setup guide](https://github.com/SDA-31/fluent_typed_codegen/tree/main#setup)
 //! for installation, and the
 //! [migration guide](https://github.com/SDA-31/fluent_typed_codegen/blob/main/docs/migration-0.2.md)
-//! when upgrading from 0.1.4. For 0.2.1 applications, see the
-//! [0.2.2 migration](https://github.com/SDA-31/fluent_typed_codegen/blob/main/docs/migration-0.2.2.md).
+//! when upgrading from 0.1.4. For 0.2.2 applications, see the
+//! [0.3.0 migration](https://github.com/SDA-31/fluent_typed_codegen/blob/main/docs/migration-0.3.0.md).
 //!
 //! Language directories are discovered automatically. FTL file paths become
 //! named Rust types, and message parameters become typed accessor arguments.
 //!
-//! Built on [fluent-typed](https://docs.rs/fluent-typed/0.9.0/fluent_typed/), which
+//! Built on [fluent-typed](https://docs.rs/fluent-typed/0.10.1/fluent_typed/), which
 //! generates the typed message accessors and provides Fluent formatting. This crate
 //! adds module discovery and a typed translation tree around that foundation.
 //! Applications choose their own resource loading, active language and presentation layer.
@@ -90,8 +90,9 @@
 //! Failed generation can leave partial output; always propagate build errors.
 //!
 //! Generated leaves expose checked `new(locale, bytes)`, safe `new_unchecked`,
-//! and standalone `validate`. `Translations::from_modules` validates and parses
-//! caller-supplied FTL strings before
+//! and standalone `validate`. Constructors take `Into<Vec<u8>>`: owned buffers
+//! are moved and slices are copied.
+//! `Translations::from_modules` validates and parses caller-supplied FTL strings before
 //! returning a snapshot. Compatible prose edits can be loaded without rebuilding;
 //! changes to the schema or language/module inventory require regeneration.
 //! These runtime methods perform no filesystem reads. File loading and replacing
@@ -195,6 +196,8 @@ mod embedding;
 mod extension;
 #[cfg(feature = "build")]
 mod generation;
+#[cfg(feature = "build")]
+mod leaf_constructors;
 #[cfg(feature = "build")]
 mod locale;
 #[cfg(feature = "build")]

@@ -72,11 +72,11 @@ edition = "2024"
 rust-version = "1.95"
 
 [build-dependencies]
-fluent_typed_codegen = { version = "0.2.2", default-features = false, features = ["build"] }
+fluent_typed_codegen = { version = "0.3.0", default-features = false, features = ["build"] }
 
 [dependencies]
-fluent_typed_codegen = { version = "0.2.2", default-features = false }
-fluent-typed = { version = "0.9.0", default-features = false, features = ["langneg"] }
+fluent_typed_codegen = { version = "0.3.0", default-features = false }
+fluent-typed = { version = "0.10.1", default-features = false, features = ["langneg"] }
 fluent-syntax = "0.12"
 
 [package.metadata.localization]
@@ -181,7 +181,8 @@ Paths and language policy live in two small TOML sections:
 
 Omit `translations-directory` when `en/`, `es/` and the other locale folders sit
 beside the catalog TOML. The legacy `languages-directory` alias is accepted;
-specifying both names is an error. The generator does not guess directory names.
+specifying both names is an error. The generator does not guess directory names. Hidden directories such as
+`.history` are ignored at every level; symbolic links remain unsupported.
 
 The application selects its initial locale. `default-language` records that policy;
 `Locale::default()` identifies the **source** language.
@@ -227,12 +228,20 @@ The generated API accepts readable bytes without prescribing storage. These are
 the available operations; [complete programs](docs/loading.md) show the inputs:
 
 ```rust
-let hud = texts::presentation::Hud::new(locale, &bytes)?;
-let unchecked = texts::presentation::Hud::new_unchecked(locale, &bytes)?;
+let hud = texts::presentation::Hud::new(locale, bytes.as_slice())?;
+let unchecked = texts::presentation::Hud::new_unchecked(locale, bytes.as_slice())?;
 texts::presentation::Hud::validate(&bytes)?;
 let path = texts::presentation::Hud::PATH;
 let locale = hud.locale();
 ```
+
+Both constructors accept `Into<Vec<u8>>`, matching fluent-typed. Pass a fresh
+`Vec<u8>` or `String` by value to transfer its allocation into the Fluent resource.
+Pass `bytes.as_slice()` when retaining a buffer; the constructor copies that
+slice once. `&Vec<u8>` needs this explicit slice conversion. `from_manifest`
+automatically consumes file buffers and copies embedded bytes once. Parsing and
+validation still allocate their own structures. Generated scopes also implement
+`Debug`, so loading results support `unwrap_err()`.
 
 Checked loading validates exact keys/references and upstream typed contracts.
 `new_unchecked` is a **safe** method that skips those compatibility checks; UTF-8
@@ -303,7 +312,7 @@ enters the binary. Static embedded bytes outlive dropped parsed catalogs. The ge
 macro is crate-local, including inside a `pub mod texts`; a library can expose
 its own manifest constant alongside catalog aliases.
 
-Upgrading from 0.2.1? Follow the [0.2.2 migration](docs/migration-0.2.2.md).
+Upgrading from 0.2.2? Follow the [0.3.0 migration](docs/migration-0.3.0.md).
 
 Upgrading from 0.1.4? Follow the [migration guide](docs/migration-0.2.md)
 for before/after constructors, error handling, metadata and manual includes.
@@ -449,8 +458,8 @@ implement a rendering engine.
 
 | Symptom | What to check |
 | --- | --- |
-| `Hud::new`, `from_manifest` or `embed_manifest!` is missing | Use version 0.2.2 from [Setup](#setup) in **both** Cargo sections. Published 0.1.4 uses the previous API. |
-| `embed_manifest!` rejects a constant declaration | Use 0.2.2 in both normal and build dependencies. Selectors are relative schema paths, not application aliases. |
+| `Hud::new`, `from_manifest` or `embed_manifest!` is missing | Use version 0.3.0 from [Setup](#setup) in **both** Cargo sections. Published 0.1.4 uses the previous API. |
+| `embed_manifest!` rejects a constant declaration | Use 0.3.0 in both normal and build dependencies. Selectors are relative schema paths, not application aliases. |
 | `translations!` cannot find `OUT_DIR` or `translations.rs` | Add the [build.rs](#2-run-generation-from-buildrs) beside the application's Cargo.toml and enable `build` on its build dependency. Resolve any earlier generation error first. |
 | `LocalizationManifest::from_file` or `parse` is missing | Enable `manifest` on the **normal** dependency, as in the [file recipe](docs/loading.md#read-files-through-a-manifest). A build dependency's features do not enable runtime APIs. |
 | Generated code cannot resolve `fluent_typed` or `fluent_syntax` | Keep `fluent-typed` and `fluent-syntax` under those canonical dependency names in the application's `[dependencies]`. |

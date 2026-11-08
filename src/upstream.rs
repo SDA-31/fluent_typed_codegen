@@ -44,6 +44,8 @@ pub(super) fn generate(
 		}
 
 		let options = BuildOptions::default()
+			// Keep negotiation explicit instead of relying on host feature unification.
+			.with_langneg()
 			.with_locales_folder(BuildError::utf8(&module_input)?)
 			// Upstream's default owns API annotations, not the app's startup language.
 			.with_default_language(&sources.configuration.source_language)
@@ -95,7 +97,7 @@ fn remove_embedded(output: &Path) -> Result<(), BuildError> {
 				continue;
 			}
 			Item::Static(value) if value.ident == "MESSAGE_CONTRACTS" => {
-				contracts = true;
+				contracts = matches!(value.vis, syn::Visibility::Public(_));
 			}
 			Item::Static(value)
 				if value.ident != "ALL_LANGS"
@@ -171,11 +173,6 @@ fn remove_embedded(output: &Path) -> Result<(), BuildError> {
 		});
 	}
 
-	items.push(parse_quote! {
-		pub(super) fn __validate(bytes: &[u8]) -> Result<(), L10nError> {
-			validate_ftl(bytes, MESSAGE_CONTRACTS)
-		}
-	});
 	syntax.items = items;
 	build_io::write(output, prettyplease::unparse(&syntax))
 }

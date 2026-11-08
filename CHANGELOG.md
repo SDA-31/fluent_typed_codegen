@@ -5,6 +5,38 @@ Notable changes are recorded here using
 Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html);
 before 1.0, a minor release can introduce incompatible API changes.
 
+## [0.3.0]
+
+See the [migration from 0.2.2](docs/migration-0.3.0.md).
+
+### Added
+
+- Generated root, group and leaf wrappers implement `Debug`.
+
+### Changed
+
+- **Breaking:** generated `new` and `new_unchecked` accept `Into<Vec<u8>>`,
+  matching fluent-typed. Vec/String inputs transfer their allocation; slices
+  are copied. Replace `&Vec<u8>` inputs with `.as_slice()` when retaining a buffer.
+- **Breaking:** generated structured `(Element)` accessors now use the `msg_`
+  message prefix, such as `msg_prompt`, matching plain accessors. Their result
+  types and fields are unchanged.
+- Use fluent-typed 0.10.1 with explicit language-negotiation generation. Normal
+  and host build features remain isolated; the macro-only graph stays dependency-free.
+- Checked loading uses upstream's public message contracts directly. Additional
+  reference/function/argument checks may reject invalid translations that used
+  to compile and fail during formatting; fix FTL identified by the build warning.
+- File manifests preserve acquired buffer ownership through leaf and complete
+  catalog loading. Borrowed constructors and embedded source semantics remain.
+
+### Fixed
+
+- Preserve fluent-typed 0.10.1 fixes for Rust keyword arguments, accessor-local
+  name clashes and quoted/backslashed language names. Generated-name collisions
+  are reported as typed upstream build errors before compiling the output.
+- Ignore hidden locale and module directories such as `.history`, matching
+  upstream discovery. Symbolic links remain rejected.
+
 ## [0.2.2] - 2026-10-05
 
 See the [migration from 0.2.1](docs/migration-0.2.2.md).
@@ -100,3 +132,5 @@ Earlier releases predate this changelog; their source is retained in Git tags.
 [0.2.1]: https://github.com/SDA-31/fluent_typed_codegen/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/SDA-31/fluent_typed_codegen/compare/v0.1.4...v0.2.0
 [0.1.4]: https://github.com/SDA-31/fluent_typed_codegen/compare/v0.1.3...v0.1.4
+
+[0.3.0]: https://github.com/SDA-31/fluent_typed_codegen/compare/v0.2.2...v0.3.0

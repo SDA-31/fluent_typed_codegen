@@ -20,7 +20,7 @@ For file loading or loading one module on demand, use the separate
 ```toml
 [dependencies]
 l10n = { package = "fluent_typed_codegen", path = "../..", default-features = false }
-fluent-typed = { version = "0.9.0", default-features = false, features = ["langneg"] }
+fluent-typed = { version = "0.10.1", default-features = false, features = ["langneg"] }
 fluent-syntax = "0.12"
 icu_decimal = { version = "2.3", features = ["alloc"] }
 icu_locale_core = "2.3"

@@ -24,7 +24,7 @@ accessor never opens a file or loads another module.
 First replace only the `fluent_typed_codegen` entry under `[dependencies]` with:
 
 ```toml
-fluent_typed_codegen = { version = "0.2.2", default-features = false, features = ["manifest"] }
+fluent_typed_codegen = { version = "0.3.0", default-features = false, features = ["manifest"] }
 ```
 
 Keep the `[build-dependencies]` entry unchanged. The `manifest` feature enables
@@ -80,16 +80,16 @@ fluent_typed_codegen::translations!(pub mod texts);
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let bytes = std::fs::read("assets/localizations/translations/en/presentation/hud.ftl")?;
-    let hud = texts::presentation::Hud::new(texts::Locale::En, &bytes)?;
-    drop(bytes);
+    let hud = texts::presentation::Hud::new(texts::Locale::En, bytes)?;
     println!("{}", hud.msg_greeting("Ada"));
     Ok(())
 }
 ```
 
-`Hud` owns its parsed data and does not retain a borrow of `bytes`. The current
-upstream loader copies source text; this is not zero-copy parsing. Dropping the
-input buffer after construction is safe. Other FTL modules remain unloaded.
+`new` moves the acquired buffer into the Fluent resource without an extra
+full-source copy. Validation and parsing still allocate; this is not allocation-free
+parsing. Use `new(locale, bytes.as_slice())` when retaining a buffer; the slice is copied.
+Other FTL modules remain unloaded.
 
 ## Load a complete language from pairs
 
@@ -150,7 +150,7 @@ Embedding needs no `manifest` feature and performs no runtime filesystem reads.
 The macro uses the manifest already processed by `build.rs`; it takes no runtime
 path or `LocalizationManifest` value.
 
-Use generator 0.2.2 in both normal and build dependencies for this recipe.
+Use generator 0.3.0 in both normal and build dependencies for this recipe.
 
 ```rust
 fluent_typed_codegen::translations!(pub mod texts);

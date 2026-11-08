@@ -79,18 +79,17 @@ impl Translations {
 			.map(|(_, path)| *path)
 			.collect();
 		let bytes = manifest.read_modules(locale.as_ref(), &paths)?;
-		let mut modules = ::std::vec::Vec::with_capacity(bytes.len());
 
-		for ((path, bytes), expected) in bytes.iter().zip(&paths) {
-			let source = ::std::str::from_utf8(bytes).map_err(|error| LoadError::Module {
+		for (path, bytes) in &bytes {
+			::std::str::from_utf8(bytes).map_err(|error| LoadError::Module {
 				locale: ::std::option::Option::Some(locale),
-				path: (*expected).into(),
+				path: path.clone(),
 				message: error.to_string(),
 			})?;
-			modules.push((path.as_str(), source));
 		}
 
-		Self::from_modules(locale, &modules)
+		let mut sources = bytes.into_iter().collect();
+		Self::__from_buffers(locale, &mut sources, true)
 	}
 
 	fn __sources<'a>(

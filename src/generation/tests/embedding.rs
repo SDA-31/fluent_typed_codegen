@@ -40,7 +40,7 @@ edition = "2024"
 [workspace]
 [dependencies]
 l10n = {{ package = "fluent_typed_codegen", path = {generator:?}, default-features = false }}
-fluent-typed = {{ version = "0.9.0", default-features = false, features = ["langneg"] }}
+fluent-typed = {{ version = "0.10.1", default-features = false, features = ["langneg"] }}
 fluent-syntax = "0.12"
 [profile.dev]
 opt-level = 0

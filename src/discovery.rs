@@ -20,6 +20,7 @@ pub(super) struct CatalogSources {
 
 /// Discover locale directories and FTL files, rejecting symlinks within the
 /// language tree and validating per-language parity.
+/// Hidden directories are ignored; symlinks are still rejected before filtering.
 /// Upstream argument-type validation runs later during generation.
 pub(super) fn discover(package: &Path, settings: &Settings) -> Result<CatalogSources, BuildError> {
 	settings.validate()?;
@@ -56,7 +57,7 @@ pub(super) fn discover(package: &Path, settings: &Settings) -> Result<CatalogSou
 			return Err(BuildError::Symlink { path: entry.path() });
 		}
 
-		if !kind.is_dir() {
+		if !kind.is_dir() || entry.file_name().as_encoded_bytes().starts_with(b".") {
 			continue;
 		}
 
@@ -180,15 +181,19 @@ fn discover_modules(root: &Path, directory: &Path) -> Result<Vec<String>, BuildE
 			.map_err(|source| BuildError::io(IoOperation::ReadDirectory, directory, source))?;
 		let path = entry.path();
 
-		if entry
+		let kind = entry
 			.file_type()
-			.map_err(|source| BuildError::io(IoOperation::Metadata, &path, source))?
-			.is_symlink()
-		{
+			.map_err(|source| BuildError::io(IoOperation::Metadata, &path, source))?;
+
+		if kind.is_symlink() {
 			return Err(BuildError::Symlink { path });
 		}
 
-		if path.is_dir() {
+		if kind.is_dir() && entry.file_name().as_encoded_bytes().starts_with(b".") {
+			continue;
+		}
+
+		if kind.is_dir() {
 			files.extend(discover_modules(root, &path)?);
 		} else if path.extension().is_some_and(|extension| extension == "ftl") {
 			let relative =

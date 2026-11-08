@@ -1,19 +1,22 @@
-# Migrate from fluent_typed_codegen 0.2.1 to 0.2.2
+# Migrate from fluent_typed_codegen 0.2.1 to 0.3.0
 
-Typed message accessors and catalog constructors keep their signatures. Update
-build configuration and selective embedding before rebuilding your application.
+Update build configuration and selective embedding before rebuilding your
+application. Also apply the [fluent-typed 0.10 changes](migration-0.3.0.md), including
+structured accessor prefixes and the Into<Vec<u8>> constructor contract. Slice
+arguments remain supported; replace &Vec inputs with an explicit .as_slice().
 
 ## Update both dependencies
 
 ```toml
 [dependencies]
-fluent_typed_codegen = { version = "0.2.2", default-features = false }
+fluent_typed_codegen = { version = "0.3.0", default-features = false }
 
 [build-dependencies]
-fluent_typed_codegen = { version = "0.2.2", default-features = false, features = ["build"] }
+fluent_typed_codegen = { version = "0.3.0", default-features = false, features = ["build"] }
 ```
 
-Keep your existing `fluent-typed`, `fluent-syntax` and optional `manifest` feature.
+Update `fluent-typed` to 0.10.1; keep `fluent-syntax` 0.12 and the optional
+`manifest` feature.
 Generation remains an explicit `fluent_typed_codegen::build()` call in `build.rs`.
 The `translations!` declaration is unchanged. Remove development overrides when
 switching to registry dependencies.
