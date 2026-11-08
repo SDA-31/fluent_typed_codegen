@@ -7,7 +7,7 @@ before 1.0, a minor release can introduce incompatible API changes.
 
 ## [0.3.0]
 
-See the [migration from 0.2.2](docs/migration-0.3.0.md).
+See the [migration from 0.2.2](docs/migrations/migration-0.2.2.md).
 
 ### Added
 
@@ -39,7 +39,7 @@ See the [migration from 0.2.2](docs/migration-0.3.0.md).
 
 ## [0.2.2] - 2026-10-05
 
-See the [migration from 0.2.1](docs/migration-0.2.2.md).
+See the [migration from 0.2.1](docs/migrations/migration-0.2.1.md).
 
 ### Added
 
@@ -81,7 +81,7 @@ See the [migration from 0.2.1](docs/migration-0.2.2.md).
 
 ## [0.2.0] - 2026-09-28
 
-Follow the [migration from 0.1.4](docs/migration-0.2.md)
+Follow the [migration from 0.1.4](docs/migrations/migration-0.1.4.md)
 for dependency updates and before/after initialization examples.
 
 ### Added

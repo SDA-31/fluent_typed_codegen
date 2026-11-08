@@ -28,6 +28,7 @@ and Rust checks the arguments at each call site.
 ## Contents
 
 - [Create your first application](#setup)
+- [Migration Guide](docs/migrations/README.md)
 - [Configure paths and languages](#configuration)
 - [Call generated messages](#typed-translation-scopes)
 - [Load files, bytes or individual modules](docs/loading.md)
@@ -312,10 +313,8 @@ enters the binary. Static embedded bytes outlive dropped parsed catalogs. The ge
 macro is crate-local, including inside a `pub mod texts`; a library can expose
 its own manifest constant alongside catalog aliases.
 
-Upgrading from 0.2.2? Follow the [0.3.0 migration](docs/migration-0.3.0.md).
-
-Upgrading from 0.1.4? Follow the [migration guide](docs/migration-0.2.md)
-for before/after constructors, error handling, metadata and manual includes.
+Upgrading an existing application? Use the [Migration Guide](docs/migrations/README.md)
+to choose the upgrade path from your current version.
 
 ### Naming and references
 
