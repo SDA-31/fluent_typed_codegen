@@ -76,9 +76,7 @@ version = "0.0.0"
 edition = "2024"
 [workspace]
 [dependencies]
-l10n = {{ package = "fluent_typed_codegen", path = {generator:?}, default-features = false }}
-fluent-typed = {{ version = "0.10.1", default-features = false, features = ["langneg"] }}
-fluent-syntax = "0.12"
+l10n = {{ package = "fluent_typed_codegen", path = {generator:?}, default-features = false, features = ["runtime"] }}
 "#
 		),
 	);
@@ -88,8 +86,8 @@ fluent-syntax = "0.12"
 #[allow(dead_code, clippy::derivable_impls, clippy::too_many_arguments)]
 pub mod texts {{
     use l10n as __fluent_codegen;
-    use fluent_typed;
-    use fluent_syntax;
+    use l10n::fluent_typed;
+    use l10n::fluent_syntax;
     include!({generated:?});
 }}
 "#
@@ -205,15 +203,62 @@ edition = "2024"
 [workspace]
 resolver = {resolver:?}
 [dependencies]
-l10n = {{ package = "fluent_typed_codegen", path = {generator:?}, default-features = false }}
+l10n = {{ package = "fluent_typed_codegen", path = {generator:?}, default-features = false, features = ["runtime"] }}
 [build-dependencies]
 l10n = {{ package = "fluent_typed_codegen", path = {generator:?}, default-features = false, features = ["build"] }}
 "#));
 		fixture.write(
 			"src/lib.rs",
-			"pub fn contract(value: l10n::LocalizationManifest) -> l10n::LocalizationManifest { value }\n",
+			"pub use l10n::{fluent_syntax, fluent_typed};\npub fn contract(value: l10n::LocalizationManifest) -> l10n::LocalizationManifest { value }\n",
 		);
 		cargo(&fixture, &["check", "--offline", "--quiet"]);
+		let graph = run_cargo(
+			&fixture,
+			&[
+				"tree",
+				"--locked",
+				"--offline",
+				"--edges",
+				"normal",
+				"--prefix",
+				"none",
+				"--format",
+				"{p} features=[{f}]",
+			],
+		);
+		assert!(
+			graph.status.success(),
+			"{}",
+			String::from_utf8_lossy(&graph.stderr)
+		);
+		let graph = String::from_utf8(graph.stdout).unwrap();
+		assert!(graph.contains("fluent-typed v0.10.1"), "{graph}");
+		assert!(graph.contains("fluent-syntax v0.12.0"), "{graph}");
+
+		assert!(
+			graph
+				.lines()
+				.any(|line| line.starts_with("fluent_typed_codegen v")
+					&& line.ends_with("features=[runtime]")),
+			"{graph}"
+		);
+		assert!(
+			graph
+				.lines()
+				.any(|line| line.starts_with("fluent-typed v")
+					&& line.ends_with("features=[langneg]")),
+			"{graph}"
+		);
+
+		for dependency in ["prettyplease", "toml_edit"] {
+			assert!(
+				!graph
+					.lines()
+					.any(|line| line.starts_with(&format!("{dependency} v"))),
+				"{graph}"
+			);
+		}
+
 		fixture.write(
 			"src/lib.rs",
 			"use l10n::build;\npub fn runtime_build() { let _ = build; }\n",
@@ -231,12 +276,41 @@ l10n = {{ package = "fluent_typed_codegen", path = {generator:?}, default-featur
 	}
 }
 
+#[test]
+fn translations_reports_a_missing_runtime_feature_without_leaking_host_features() {
+	let fixture = Fixture::new();
+	let generator = env!("CARGO_MANIFEST_DIR").replace('\\', "/");
+	fixture.write("build.rs", "fn main() {}\n");
+	fixture.write("src/lib.rs", "l10n::translations!(pub mod texts);\n");
+
+	for resolver in ["2", "3"] {
+		fixture.write("Cargo.toml", &format!(r#"[package]
+name = "codegen-missing-runtime-probe"
+version = "0.0.0"
+edition = "2024"
+[workspace]
+resolver = {resolver:?}
+[dependencies]
+l10n = {{ package = "fluent_typed_codegen", path = {generator:?}, default-features = false }}
+[build-dependencies]
+l10n = {{ package = "fluent_typed_codegen", path = {generator:?}, default-features = false, features = ["build"] }}
+"#));
+		let output = run_cargo(&fixture, &["check", "--offline", "--quiet"]);
+		let stderr = String::from_utf8_lossy(&output.stderr);
+		assert!(
+			!output.status.success(),
+			"resolver {resolver} leaked host runtime features"
+		);
+		assert!(stderr.contains("enable feature `runtime`"), "{stderr}");
+		assert!(!stderr.contains("OUT_DIR"), "{stderr}");
+	}
+}
+
 fn run_cargo(fixture: &Fixture, args: &[&str]) -> std::process::Output {
 	Command::new(env!("CARGO"))
 		.current_dir(&fixture.0)
 		.args(args)
-		.arg("--target-dir")
-		.arg(fixture.0.join("target"))
+		.env("CARGO_TARGET_DIR", fixture.0.join("target"))
 		.output()
 		.unwrap()
 }

@@ -24,7 +24,7 @@ accessor never opens a file or loads another module.
 First replace only the `fluent_typed_codegen` entry under `[dependencies]` with:
 
 ```toml
-fluent_typed_codegen = { version = "0.3.0", default-features = false, features = ["manifest"] }
+fluent_typed_codegen = { version = "0.3.0", default-features = false, features = ["runtime", "manifest"] }
 ```
 
 Keep the `[build-dependencies]` entry unchanged. The `manifest` feature enables

@@ -39,9 +39,7 @@ version = "0.0.0"
 edition = "2024"
 [workspace]
 [dependencies]
-l10n = {{ package = "fluent_typed_codegen", path = {generator:?}, default-features = false }}
-fluent-typed = {{ version = "0.10.1", default-features = false, features = ["langneg"] }}
-fluent-syntax = "0.12"
+l10n = {{ package = "fluent_typed_codegen", path = {generator:?}, default-features = false, features = ["runtime"] }}
 [profile.dev]
 opt-level = 0
 lto = false
@@ -55,8 +53,8 @@ strip = "none"
 #[allow(dead_code, clippy::derivable_impls, clippy::too_many_arguments)]
 mod texts {{
     use l10n as __fluent_codegen;
-    use fluent_typed;
-    use fluent_syntax;
+    use l10n::fluent_typed;
+    use l10n::fluent_syntax;
     include!({generated:?});
 }}
 pub use texts::ui::Options as SettingsTexts;
@@ -127,8 +125,8 @@ mod localization {{
     #[allow(dead_code, clippy::derivable_impls, clippy::too_many_arguments)]
     mod texts {{
         use l10n as __fluent_codegen;
-        use fluent_typed;
-        use fluent_syntax;
+        use l10n::fluent_typed;
+        use l10n::fluent_syntax;
         include!({generated:?});
     }}
     pub use texts::ui::Options as Interface;

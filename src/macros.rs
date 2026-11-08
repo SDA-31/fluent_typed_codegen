@@ -1,9 +1,9 @@
 /// Declare a module containing this package's generated Fluent translations.
 ///
 /// Run `fluent_typed_codegen::build()` from your build.rs with feature `build`.
-/// In normal dependencies, disable default features to use just this macro.
-/// Also declare `fluent-typed` and `fluent-syntax` under their standard dependency
-/// names; generated code uses these consumer-owned runtime libraries.
+/// In normal dependencies, disable defaults and enable `runtime`. Generated code
+/// uses this crate's pinned [`crate::fluent_typed`] and [`crate::fluent_syntax`]
+/// re-exports; no direct Fluent dependencies are needed.
 ///
 /// ```ignore
 /// fluent_typed_codegen::translations!(pub mod texts);
@@ -18,7 +18,7 @@
 /// trailing semicolon inside the invocation are optional. The macro only declares
 /// the module, imports the Fluent libraries and includes Cargo output; it neither
 /// generates sources nor loads catalogs. Explicit low-level
-/// inclusion remains supported for custom dependency aliases or frontend layouts.
+/// inclusion remains supported for custom frontend layouts.
 /// Named manifests can be declared with a selector relative to this tree:
 /// `texts::embed_manifest! { pub const HUD = presentation::Hud; }`.
 /// The constant has type [`crate::LocalizationManifest`] and can be exported
@@ -26,6 +26,7 @@
 /// Selectors are relative schema paths, not application imports or type aliases.
 /// A `translations!` declaration alone embeds no FTL, including in unoptimized
 /// builds; `embed_manifest!()` embeds the whole tree.
+#[cfg(feature = "runtime")]
 #[macro_export]
 macro_rules! translations {
 	($(#[$attribute:meta])* $visibility:vis mod $name:ident $(;)?) => {
@@ -35,13 +36,20 @@ macro_rules! translations {
 		#[allow(dead_code, clippy::derivable_impls, clippy::too_many_arguments)]
 		$visibility mod $name {
 			use $crate as __fluent_codegen;
-			#[allow(clippy::single_component_path_imports)]
-			use ::fluent_syntax;
-			#[allow(clippy::single_component_path_imports)]
-			use ::fluent_typed;
+			use $crate::fluent_syntax;
+			use $crate::fluent_typed;
 
 			::std::include!(::std::concat!(::std::env!("OUT_DIR"), "/translations.rs"));
 		}
+	};
+}
+
+/// Declare generated translations after enabling `runtime` on the normal dependency.
+#[cfg(not(feature = "runtime"))]
+#[macro_export]
+macro_rules! translations {
+	($($declaration:tt)*) => {
+		::core::compile_error!("translations!: enable feature `runtime` on fluent_typed_codegen in [dependencies], with default-features = false. Keep feature `build` in [build-dependencies] for explicit build.rs generation.");
 	};
 }
 

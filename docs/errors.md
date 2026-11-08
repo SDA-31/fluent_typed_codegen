@@ -49,4 +49,5 @@ Replace explicitly declared `Result<_, String>` with the appropriate typed error
 or convert deliberately with `map_err(|error| error.to_string())` at an application
 boundary. These changes concern configuration and host generation; generated
 catalog constructors retain their existing `LoadError` API. Build-only types and
-syntax dependencies remain behind `build`; macro-only consumers need no dependencies.
+Rust syntax-generation dependencies remain behind `build`. The `runtime` feature
+provides pinned Fluent re-exports; std-only manifest contracts need no dependencies.

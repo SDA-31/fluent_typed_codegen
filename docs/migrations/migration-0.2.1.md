@@ -9,14 +9,15 @@ arguments remain supported; replace &Vec inputs with an explicit .as_slice().
 
 ```toml
 [dependencies]
-fluent_typed_codegen = { version = "0.3.0", default-features = false }
+fluent_typed_codegen = { version = "0.3.0", default-features = false, features = ["runtime"] }
 
 [build-dependencies]
 fluent_typed_codegen = { version = "0.3.0", default-features = false, features = ["build"] }
 ```
 
-Update `fluent-typed` to 0.10.1; keep `fluent-syntax` 0.12 and the optional
-`manifest` feature.
+Remove direct Fluent dependencies used only by generated translations; `runtime`
+provides pinned `fluent_typed` and `fluent_syntax` re-exports. Retain the optional
+`manifest` feature alongside `runtime` for file-manifest parsing.
 Generation remains an explicit `fluent_typed_codegen::build()` call in `build.rs`.
 The `translations!` declaration is unchanged. Remove development overrides when
 switching to registry dependencies.

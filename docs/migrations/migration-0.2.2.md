@@ -7,9 +7,7 @@ keep Cargo resolver 2 or 3 and explicit generation in build.rs.
 
 ```toml
 [dependencies]
-fluent_typed_codegen = { version = "0.3.0", default-features = false }
-fluent-typed = { version = "0.10.1", default-features = false, features = ["langneg"] }
-fluent-syntax = "0.12"
+fluent_typed_codegen = { version = "0.3.0", default-features = false, features = ["runtime"] }
 
 [build-dependencies]
 fluent_typed_codegen = { version = "0.3.0", default-features = false, features = ["build"] }
@@ -18,8 +16,11 @@ fluent_typed_codegen = { version = "0.3.0", default-features = false, features =
 Keep the existing build.rs call and translations! declaration. Retain the optional
 manifest feature when using file-manifest factories. Bevy consumers use the
 bevy_fluent_typed 0.5.0 facade instead of adding this engine-free graph.
-The generator selects upstream language-negotiation generation explicitly;
-consumers keep the langneg runtime feature shown above.
+Remove direct `fluent-typed` and `fluent-syntax` dependencies used only by generated
+translations. The `runtime` feature supplies both through version-pinned re-exports,
+including language negotiation. For direct upstream calls, use
+`fluent_typed_codegen::fluent_typed` or `fluent_typed_codegen::fluent_syntax`.
+Manual `include!` modules import those re-exports instead of external crate names.
 
 ## Rename structured message accessors
 

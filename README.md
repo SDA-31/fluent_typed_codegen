@@ -76,9 +76,7 @@ rust-version = "1.95"
 fluent_typed_codegen = { version = "0.3.0", default-features = false, features = ["build"] }
 
 [dependencies]
-fluent_typed_codegen = { version = "0.3.0", default-features = false }
-fluent-typed = { version = "0.10.1", default-features = false, features = ["langneg"] }
-fluent-syntax = "0.12"
+fluent_typed_codegen = { version = "0.3.0", default-features = false, features = ["runtime"] }
 
 [package.metadata.localization]
 catalog = "assets/localizations/localization.toml"
@@ -461,7 +459,7 @@ implement a rendering engine.
 | `embed_manifest!` rejects a constant declaration | Use 0.3.0 in both normal and build dependencies. Selectors are relative schema paths, not application aliases. |
 | `translations!` cannot find `OUT_DIR` or `translations.rs` | Add the [build.rs](#2-run-generation-from-buildrs) beside the application's Cargo.toml and enable `build` on its build dependency. Resolve any earlier generation error first. |
 | `LocalizationManifest::from_file` or `parse` is missing | Enable `manifest` on the **normal** dependency, as in the [file recipe](docs/loading.md#read-files-through-a-manifest). A build dependency's features do not enable runtime APIs. |
-| Generated code cannot resolve `fluent_typed` or `fluent_syntax` | Keep `fluent-typed` and `fluent-syntax` under those canonical dependency names in the application's `[dependencies]`. |
+| `translations!` asks for `runtime`, or manual output cannot resolve Fluent imports | Enable `runtime` on the **normal** dependency, as in [Setup](#setup). For manual inclusion, import `fluent_typed_codegen::{fluent_syntax, fluent_typed}`. |
 | Runtime file loading reports a missing file | Run the recipe from the application directory. In a packaged application, pass the installed TOML path; retain its relative translation layout. The build-time `catalog` setting does not set the runtime working directory. |
 | Loading reports missing, duplicate or unexpected modules | Pass each logical path once, without a locale prefix. `from_modules` needs a complete language; use `Hud::new` for just one leaf. |
 | `load_all` reports missing languages | Supply every compiled locale. To keep only one language, use `from_modules` or `from_manifest`. |
@@ -478,27 +476,28 @@ Your application decides when to replace or release each loaded module.
 | Feature selection | API and dependencies |
 | --- | --- |
 | `build` (default) | Discovery, validation, generation and the typed extension API. Use in build-dependencies. |
-| `default-features = false`, no features | `translations!` plus std-only manifest contracts; zero external dependencies. |
+| `runtime` | `translations!` and re-exported fluent-typed 0.10.1 / fluent-syntax 0.12.0, with versions pinned by this crate. Use in normal dependencies with defaults disabled. |
+| `default-features = false`, no features | Std-only manifest contracts; zero external dependencies. |
 | `manifest` | Runtime TOML parsing and `LocalizationManifest::from_file` / `parse`; no generator or Fluent dependencies. |
 
-The macro declares a module, imports the consumer's `fluent-typed` and
-`fluent-syntax` libraries, and includes Cargo output. Keep those two dependency
-names canonical. The macro crate itself can be renamed, as the example's
-`l10n::translations!` demonstrates. It accepts module attributes, any Rust visibility
-and an optional trailing semicolon inside the invocation.
+The macro declares a module, imports this crate's `fluent_typed` and
+`fluent_syntax` re-exports, and includes Cargo output. No direct Fluent
+dependencies are needed. Their exact versions are selected together with the
+generator and updated in generator releases. The dependency can be renamed,
+as the example's `l10n::translations!` demonstrates. It accepts module attributes,
+any Rust visibility and an optional trailing semicolon inside the invocation.
 
 Use Cargo resolver 2 or 3 (edition 2024 selects 3 unless a workspace overrides it)
-to separate build and normal feature contexts. Syn, quote, prettyplease, TOML
-parsing and upstream code generation stay out of the macro-only instance. A
+to separate build and normal feature contexts. The normal instance enables only
+`runtime`; generator and extension APIs stay behind the host's `build` feature. A
 workspace-wide all-features build may enable them in normal targets; verify
 runtime isolation with an isolated consumer graph.
 
-Manual inclusion supports custom runtime dependency aliases and frontend layouts.
-Import the runtime libraries as `fluent_typed` and `fluent_syntax`, and this crate
-as `__fluent_codegen`, inside the generated module, then include
-`concat!(env!("OUT_DIR"), "/translations.rs")`. The std-only support dependency
-is required even for manual inclusion. Framework bridges may re-export it and
-the Fluent runtime libraries under those aliases.
+Manual inclusion supports custom frontend layouts. With `runtime` enabled,
+import `fluent_typed_codegen::{fluent_typed, fluent_syntax}` and
+`fluent_typed_codegen as __fluent_codegen` inside the generated module, then
+include `concat!(env!("OUT_DIR"), "/translations.rs")`. Framework bridges may
+re-export the support crate and Fluent libraries under those aliases.
 
 ## Outputs and indexing
 
@@ -614,10 +613,10 @@ only the registry dependency declarations from Setup.
 requests and manual dispatch. Branch pushes and PRs changing only `CHANGELOG.md`
 are ignored; tags and manual dispatch still run checks. It checks this repository independently:
 
-- Generator/manifest tests, doctests, macro-only dependency isolation, optional
+- Generator/manifest tests, doctests, runtime and macro-only dependency isolation, optional
   parser-only builds, opt-in embedding compilation and the generated consumer on Linux, Windows and macOS with stable Rust.
 - The same test suite on Linux with the declared minimum Rust 1.95.0.
-- Formatting, Clippy with warnings denied, Rustdoc in both feature modes and
+- Formatting, Clippy with warnings denied, Rustdoc with build/runtime/std-only features and
   compilation of the packaged archive on Linux.
 
 CI checks nested examples explicitly and uses the tracked standalone lockfiles

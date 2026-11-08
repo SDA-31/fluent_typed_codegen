@@ -50,8 +50,6 @@ dependencies = [
 name = "fluent-codegen-example"
 version = "0.1.0"
 dependencies = [
- "fluent-syntax",
- "fluent-typed",
  "fluent_typed_codegen",
  "icu_decimal",
  "icu_locale_core",

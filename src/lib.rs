@@ -18,10 +18,12 @@
 //!
 //! - **`build` (default):** discovery, schema validation, source generation and
 //!   the `Extension` API for custom integrations. Enable in build-dependencies.
+//! - **`runtime`:** [`translations!`] with re-exported `fluent_typed` 0.10.1 and
+//!   `fluent_syntax` 0.12.0. Enable in normal dependencies with defaults disabled.
+//!   Their versions are pinned by this crate; no direct Fluent dependencies are needed.
 //! - **`manifest`:** optional TOML parsing and file-manifest factory.
-//! - **No default features:** [`translations!`] and std-only source contracts, with no dependencies.
-//!   Use this configuration in normal dependencies. The generated code still
-//!   requires the application's `fluent-typed` and `fluent-syntax` dependencies.
+//! - **No default features:** std-only source contracts, with no dependencies.
+//!   Declaring translations requires `runtime`; `build` includes it on the host.
 //!
 //! Cargo resolver 2/3 keeps the build and normal feature contexts separate.
 //! See the [dependency setup](https://github.com/SDA-31/fluent_typed_codegen/tree/main#setup)
@@ -226,6 +228,16 @@ pub use extension::{Extension, Scope};
 pub use generation::{build, build_with, from_cargo, from_cargo_with, generate, generate_with};
 #[cfg(feature = "build")]
 pub use settings::Settings;
+
+/// Fluent runtime used by the generated accessors, pinned to version 0.10.1.
+/// Enabled by `runtime` or `build`; applications need no direct dependency.
+#[cfg(feature = "runtime")]
+pub use fluent_typed;
+
+/// Fluent syntax types used by generated validation, pinned to version 0.12.0.
+/// Enabled by `runtime` or `build`; applications need no direct dependency.
+#[cfg(feature = "runtime")]
+pub use fluent_syntax;
 
 /// Rust syntax types and `parse_quote!` used by the extension contract.
 /// Re-exported so adapters do not need to choose a matching Syn major version.

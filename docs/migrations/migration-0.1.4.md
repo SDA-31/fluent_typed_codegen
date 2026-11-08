@@ -14,9 +14,7 @@ in [Catalog-only build configuration](#catalog-only-build-configuration):
 
 ```toml
 [dependencies]
-fluent_typed_codegen = { version = "0.3.0", default-features = false }
-fluent-typed = { version = "0.10.1", default-features = false, features = ["langneg"] }
-fluent-syntax = "0.12"
+fluent_typed_codegen = { version = "0.3.0", default-features = false, features = ["runtime"] }
 
 [build-dependencies]
 fluent_typed_codegen = { version = "0.3.0", default-features = false, features = ["build"] }
@@ -90,7 +88,7 @@ If your application's boundary must keep returning `String`, convert there with
 `.map_err(|error| error.to_string())`. `LoadError` also implements
 `std::error::Error`, so it can propagate into `Box<dyn std::error::Error>`.
 
-To use the filesystem helper, enable `features = ["manifest"]` on the **normal**
+To use the filesystem helper, enable `features = ["runtime", "manifest"]` on the **normal**
 generator dependency. Replace `src/main.rs` with:
 
 ```rust
@@ -128,21 +126,20 @@ validation-only use and loading every known language.
 | Construct or exhaustively destructure extension `Scope` | Account for `logical_path: String` and `module_path: Option<String>` |
 
 Prefer the declaration macro. If manual inclusion is necessary, this is the
-complete module declaration with canonical runtime dependencies:
+complete module declaration using the pinned runtime re-exports:
 
 ```rust
 pub mod texts {
-    use fluent_syntax;
-    use fluent_typed;
+    use fluent_typed_codegen::{fluent_syntax, fluent_typed};
     use fluent_typed_codegen as __fluent_codegen;
 
     include!(concat!(env!("OUT_DIR"), "/translations.rs"));
 }
 ```
 
-Keep a normal generator dependency with defaults disabled even when manually
-including output. Framework extensions still exchange typed Rust syntax and
-must compile a consumer of their output after upgrading. The hidden
+Keep a normal generator dependency with defaults disabled and `runtime` enabled
+even when manually including output. Framework extensions still exchange typed
+Rust syntax and must compile a consumer of their output after upgrading. The hidden
 `__from_parts` hook assembles already parsed children; application code normally
 uses the public constructors.
 
